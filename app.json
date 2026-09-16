@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Cadence",
-    "slug": "cadence-app",
+    "name": "WinTheWeek",
+    "slug": "win-the-week",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,12 +13,14 @@
       "translucent": true
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "buildNumber": "1"
     },
     "android": {
+      "versionCode": 1,
       "backgroundColor": "#FDFCFB",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0B0C0F",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

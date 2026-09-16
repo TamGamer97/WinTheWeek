@@ -1,6 +1,6 @@
-# Cadence — weekly planning app
+# WinTheWeek — weekly planning app
 
-A React Native (Expo) port of the "Cadence" weekly planning mobile app design,
+A React Native (Expo) weekly planning mobile app,
 converted 1:1 from the original HTML/CSS/JS mockup: same screens, same
 layout, same colors and typography, and the same set of micro-interactions
 and animations.
