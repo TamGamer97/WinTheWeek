@@ -13,8 +13,17 @@ import { dayMeta, dayKeyOf, parseISODate } from '../utils/date';
 // (an accidental long-press-and-tap here is easy to do).
 export default function TaskMenu() {
   const { colors, shadowPanel } = useTheme();
-  const { menuItemId, menuAnchor, routines, closeTaskMenu, menuMoveRoutineDay, menuRemoveRoutineDay, menuEditRoutine, requestConfirm } =
-    useAppState();
+  const {
+    menuItemId,
+    menuAnchor,
+    routines,
+    closeTaskMenu,
+    menuMoveRoutineDay,
+    menuRemoveRoutineDay,
+    menuEditRoutine,
+    requestConfirm,
+    todayIso,
+  } = useAppState();
 
   const open = !!menuItemId && !!menuAnchor;
   const progress = useRef(new Animated.Value(0)).current;
@@ -32,6 +41,11 @@ export default function TaskMenu() {
   }, [open, progress]);
 
   if (!open || !menuAnchor || !menuItemId) return null;
+
+  // A past day's task is a read-only record — only "Edit routine" (which
+  // edits the routine's template, not this specific day) still applies.
+  const [, menuItemIso] = menuItemId.split('::');
+  const locked = menuItemIso < todayIso;
 
   const screenWidth = Dimensions.get('window').width;
   const top = menuAnchor.y + menuAnchor.height + 6;
@@ -77,8 +91,12 @@ export default function TaskMenu() {
       >
         <>
           <MenuButton label="Edit routine" onPress={menuEditRoutine} colors={colors} icon={<EditIcon color={colors.inkSoft} />} />
-          <MenuButton label="Switch day" onPress={menuMoveRoutineDay} colors={colors} icon={<CalendarIcon color={colors.inkSoft} />} />
-          <MenuButton label="Remove this day" onPress={removeThisDay} colors={colors} icon={<RemoveDayIcon color={colors.inkSoft} />} />
+          {locked ? null : (
+            <>
+              <MenuButton label="Switch day" onPress={menuMoveRoutineDay} colors={colors} icon={<CalendarIcon color={colors.inkSoft} />} />
+              <MenuButton label="Remove this day" onPress={removeThisDay} colors={colors} icon={<RemoveDayIcon color={colors.inkSoft} />} />
+            </>
+          )}
         </>
       </Animated.View>
     </>

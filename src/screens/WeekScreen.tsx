@@ -8,7 +8,7 @@ import { useAppState } from '../state/AppState';
 import { parseISODate, weeksBetween } from '../utils/date';
 
 export default function WeekScreen() {
-  const { pendingRoutines, openDaySheet, openSettings, currentWeekStart, todayWeekId, weekId, weekLabel } =
+  const { pendingRoutines, openDaySheet, openSettings, openAnalytics, currentWeekStart, todayWeekId, weekId, weekLabel } =
     useAppState();
 
   const unscheduledCount = pendingRoutines(weekId).length;
@@ -24,7 +24,7 @@ export default function WeekScreen() {
       showsVerticalScrollIndicator={false}
       overScrollMode="never"
     >
-      <ScreenHeader title={title} subtitle={subtitle} onOpenSettings={openSettings} />
+      <ScreenHeader title={title} subtitle={subtitle} onOpenSettings={openSettings} onOpenAnalytics={openAnalytics} />
       <WeekNav />
       <GroupHeader label="Not scheduled yet" count={unscheduledCount} onPress={() => openDaySheet('unscheduled', weekId)} />
       <WeekBoard />

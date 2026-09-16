@@ -73,7 +73,7 @@ function AppShell() {
   const { isDark, colors } = useTheme();
   const { activeScreen } = useAppState();
   const insets = useSafeAreaInsets();
-  const showChrome = activeScreen !== 'settings';
+  const showChrome = activeScreen !== 'settings' && activeScreen !== 'analytics';
   const statusBarHeight = Math.max(insets.top, NativeStatusBar.currentHeight ?? 0);
 
   // Keep the native decor/root background in sync as a fallback during

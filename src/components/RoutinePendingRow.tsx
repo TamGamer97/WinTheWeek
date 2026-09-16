@@ -13,7 +13,16 @@ import { useAppState } from '../state/AppState';
 // The unscheduled popup uses the same quiet spine-row language as scheduled
 // and available routines in the day popup. Its second metadata line answers
 // the only extra question this state has: how many days still need planning.
-export default function RoutinePendingRow({ routine, weekId }: { routine: Routine; weekId: string }) {
+export default function RoutinePendingRow({
+  routine,
+  weekId,
+  locked = false,
+}: {
+  routine: Routine;
+  weekId: string;
+  // A past week is a read-only record — no planning more days into it.
+  locked?: boolean;
+}) {
   const { colors, radius, isDark } = useTheme();
   const { openRoutinePlanner } = useAppState();
   const planned = daysForWeek(routine, weekId).length;
@@ -42,13 +51,19 @@ export default function RoutinePendingRow({ routine, weekId }: { routine: Routin
             {complete ? 'Target met' : `Choose ${remaining} more`}
           </Text>
         </View>
-        <PressScale
-          scaleTo={0.88}
-          onPress={() => openRoutinePlanner(routine.id)}
-          style={[styles.actionBtn, { backgroundColor: colors.accentSoft }]}
-        >
-          <PlusIcon size={13} color={colors.accent} />
-        </PressScale>
+        {locked ? (
+          <View style={[styles.actionBtn, { opacity: 0.35 }]}>
+            <PlusIcon size={13} color={colors.muted} />
+          </View>
+        ) : (
+          <PressScale
+            scaleTo={0.88}
+            onPress={() => openRoutinePlanner(routine.id)}
+            style={[styles.actionBtn, { backgroundColor: colors.accentSoft }]}
+          >
+            <PlusIcon size={13} color={colors.accent} />
+          </PressScale>
+        )}
       </View>
     </FadeInUp>
   );

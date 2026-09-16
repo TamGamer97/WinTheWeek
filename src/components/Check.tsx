@@ -15,15 +15,20 @@ export default function Check({
   size = 28,
   color,
   variant = 'default',
+  disabled = false,
 }: {
   done: boolean;
   onPress: () => void;
   size?: number;
   color?: string;
   variant?: 'default' | 'today';
+  // A past day's checkmark is a historical record, not a control — dims it
+  // and, via PressScale's own `disabled`, drops the press entirely rather
+  // than just leaving `onPress` a no-op (which would still show the squish).
+  disabled?: boolean;
 }) {
   const { colors } = useTheme();
-  const ringColor = color ?? colors.ink;
+  const ringColor = disabled ? colors.muted : color ?? colors.ink;
   const checkProgress = useRef(new Animated.Value(done ? 1 : 0)).current;
   const bounce = useRef(new Animated.Value(1)).current;
   const burst = useRef(new Animated.Value(1)).current;
@@ -59,8 +64,8 @@ export default function Check({
   const burstOpacity = burst.interpolate({ inputRange: [0, 0.45, 1], outputRange: [0, 0.14, 0] });
 
   return (
-    <PressScale scaleTo={0.88} onPress={onPress}>
-      <View style={[styles.wrap, { width: size, height: size }]}>
+    <PressScale scaleTo={0.88} onPress={onPress} disabled={disabled}>
+      <View style={[styles.wrap, { width: size, height: size, opacity: disabled ? 0.5 : 1 }]}>
         <Animated.View
           pointerEvents="none"
           style={[

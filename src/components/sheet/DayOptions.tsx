@@ -65,15 +65,22 @@ export function MultiDayPicker({
   selected,
   max,
   onToggle,
+  disabledDays,
 }: {
   selected: DayKey[];
   max: number;
   onToggle: (key: DayKey) => void;
+  // Days that can't be picked at all — used only when planning the current
+  // week, to exclude days that have already passed (see BottomSheet.tsx's
+  // useRoutinePlanContent). Editing a routine's own regular-days template
+  // has no "past" of its own, so it never passes this.
+  disabledDays?: DayKey[];
 }) {
   const opts: Opt[] = DAY_KEYS.map((key) => {
     const picked = selected.includes(key);
-    const disabled = !picked && selected.length >= max;
-    return { key, label: DAY_SHORT[key], picked, disabled, onPress: () => onToggle(key) };
+    const pastDay = disabledDays?.includes(key) ?? false;
+    const disabled = pastDay || (!picked && selected.length >= max);
+    return { key, label: DAY_SHORT[key], picked, disabled, onPress: disabled ? undefined : () => onToggle(key) };
   });
   return <OptionGrid opts={opts} />;
 }
@@ -83,21 +90,27 @@ export function RoutineDayPickerExcluding({
   excludeDay,
   pickedDay,
   onPick,
+  pastDays,
 }: {
   takenDays: DayKey[];
   excludeDay: DayKey | null;
   pickedDay: DayKey | null;
   onPick: (key: DayKey) => void;
+  // Days that are already in the past, so they can't be picked as a move
+  // destination — moving into a past day would rewrite it.
+  pastDays?: DayKey[];
 }) {
   const opts: Opt[] = DAY_KEYS.map((key) => {
     const takenByThisRoutine = takenDays.includes(key) && key !== excludeDay;
+    const isPast = pastDays?.includes(key) ?? false;
+    const disabled = takenByThisRoutine || isPast;
     const picked = pickedDay === key;
     return {
       key,
       label: DAY_SHORT[key],
       picked,
-      disabled: takenByThisRoutine,
-      onPress: takenByThisRoutine ? undefined : () => onPick(key),
+      disabled,
+      onPress: disabled ? undefined : () => onPick(key),
     };
   });
   return <OptionGrid opts={opts} />;

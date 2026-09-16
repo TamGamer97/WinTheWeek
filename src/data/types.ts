@@ -29,6 +29,12 @@ export type DayInfo = {
 // reshuffle Monday's, even when the two days share a routine. A date with
 // no entry falls back to `order` (see the effective-order resolver in
 // AppState's `tasksFor`/`makeRoutineInstance`).
+// `defaultDaysHistory` is what keeps editing `defaultDays` from rewriting
+// the past: each entry means "before `untilIso`, the regular days were
+// `days`". Appended (never mutated) whenever a routine edit actually
+// changes `defaultDays`, so `daysForWeek()` can resolve any past day
+// against whichever template really applied to it, while today-and-later
+// days pick up the new one. See `docs/DECISIONS.md`.
 export type Routine = {
   id: number;
   title: string;
@@ -39,6 +45,7 @@ export type Routine = {
   doneDates: Record<string, boolean>;
   order: number;
   dayOrder: Record<string, number>;
+  defaultDaysHistory: { untilIso: string; days: DayKey[] }[];
 };
 
 // A routine instance rendered on a specific real day — a task-shaped object
@@ -61,7 +68,7 @@ export function isRoutineInstance(task: TaskLike): task is RoutineInstance {
   return task.isRoutine === true;
 }
 
-export type ScreenName = 'week' | 'today' | 'settings';
+export type ScreenName = 'week' | 'today' | 'settings' | 'analytics';
 
 export type SheetMode =
   | 'add'

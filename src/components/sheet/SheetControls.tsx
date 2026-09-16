@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { androidTextFix, fonts } from '../../theme/fonts';
 import { ROUTINE_COLOR_IDS, routineColorHex } from '../../theme/colors';
@@ -27,6 +27,17 @@ export function SheetHint({ children }: { children: React.ReactNode }) {
       numberOfLines={1}
       style={[styles.hint, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}
     >
+      {children}
+    </Text>
+  );
+}
+
+// Like SheetHint, but for static guidance that needs more than one line
+// (SheetHint truncates to a single line, meant for a short live status).
+export function SheetDescription({ children }: { children: React.ReactNode }) {
+  const { colors } = useTheme();
+  return (
+    <Text style={[styles.description, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>
       {children}
     </Text>
   );
@@ -75,33 +86,70 @@ export function TaskColorPicker({ value, onChange }: { value: string; onChange: 
   );
 }
 
+// How long each rotating example holds before cross-fading to the next —
+// long enough to actually read, short enough that a few go by while
+// someone's still deciding what to name a new routine.
+const EXAMPLE_HOLD_MS = 2200;
+const EXAMPLE_FADE_MS = 220;
+
 export function SheetTextInput({
   value,
   onChangeText,
   placeholder,
+  examples,
 }: {
   value: string;
   onChangeText: (v: string) => void;
-  placeholder: string;
+  // A single static placeholder. Ignored if `examples` is given.
+  placeholder?: string;
+  // Cross-fades through a few short example names instead of one fixed
+  // placeholder — e.g. nudging toward "Gym" over "Go to the gym" without
+  // a wall of instructional copy. Only shown while the field is empty.
+  examples?: string[];
 }) {
   const { colors, radius } = useTheme();
+  const [exampleIndex, setExampleIndex] = useState(0);
+  const fade = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!examples || examples.length < 2) return;
+    const id = setInterval(() => {
+      Animated.timing(fade, { toValue: 0, duration: EXAMPLE_FADE_MS, useNativeDriver: true }).start(() => {
+        setExampleIndex((i) => (i + 1) % examples.length);
+        Animated.timing(fade, { toValue: 1, duration: EXAMPLE_FADE_MS, useNativeDriver: true }).start();
+      });
+    }, EXAMPLE_HOLD_MS);
+    return () => clearInterval(id);
+  }, [examples, fade]);
+
+  const showExampleOverlay = !!examples?.length && !value;
+
   return (
-    <TextInput
-      value={value}
-      onChangeText={onChangeText}
-      placeholder={placeholder}
-      placeholderTextColor={colors.muted}
-      style={[
-        styles.input,
-        {
-          borderColor: colors.lineStrong,
-          color: colors.ink,
-          backgroundColor: colors.paper,
-          borderRadius: radius.md,
-          fontFamily: fonts.bodyRegular,
-        },
-      ]}
-    />
+    <View>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={examples ? undefined : placeholder}
+        placeholderTextColor={colors.muted}
+        style={[
+          styles.input,
+          {
+            borderColor: colors.lineStrong,
+            color: colors.ink,
+            backgroundColor: colors.paper,
+            borderRadius: radius.md,
+            fontFamily: fonts.bodyRegular,
+          },
+        ]}
+      />
+      {showExampleOverlay && (
+        <Animated.View style={[styles.exampleOverlay, { opacity: fade }]} pointerEvents="none">
+          <Text numberOfLines={1} style={[styles.exampleText, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>
+            e.g. {examples![exampleIndex]}
+          </Text>
+        </Animated.View>
+      )}
+    </View>
   );
 }
 
@@ -186,6 +234,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 8,
   },
+  description: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 6,
+  },
   linkBtn: {
     alignSelf: 'flex-start',
     marginTop: 10,
@@ -224,6 +277,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingVertical: 13,
     paddingHorizontal: 14,
+    fontSize: 15,
+  },
+  exampleOverlay: {
+    position: 'absolute',
+    left: 1,
+    right: 1,
+    top: 1,
+    bottom: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+  exampleText: {
     fontSize: 15,
   },
   primaryBtn: {

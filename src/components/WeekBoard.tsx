@@ -14,7 +14,15 @@ import { useAppState } from '../state/AppState';
 // never disagree about what color a task is. The comma between titles
 // stays a neutral, muted tone so it reads as punctuation rather than
 // picking up whichever task's color happens to be nearest.
-function TaskInline({ tasks, onToggle }: { tasks: RoutineInstance[]; onToggle: (id: string) => void }) {
+function TaskInline({
+  tasks,
+  onToggle,
+  todayIso,
+}: {
+  tasks: RoutineInstance[];
+  onToggle: (id: string) => void;
+  todayIso: string;
+}) {
   const { colors, isDark } = useTheme();
 
   return (
@@ -23,19 +31,26 @@ function TaskInline({ tasks, onToggle }: { tasks: RoutineInstance[]; onToggle: (
       ellipsizeMode="tail"
       style={[styles.taskLine, androidTextFix, { fontFamily: fonts.bodyMedium }]}
     >
-      {tasks.map((t, i) => (
-        <Text key={t.id} onPress={() => onToggle(String(t.id))}>
-          <Text
-            style={{
-              color: t.done ? colors.muted : routineColorHex(t.color, isDark),
-              textDecorationLine: t.done ? 'line-through' : 'none',
-            }}
-          >
-            {t.title}
+      {tasks.map((t, i) => {
+        // A past day's tasks are a read-only record — no tap-to-toggle, and
+        // dimmed (rather than the done styling, which would misleadingly
+        // read as "completed") so an untouched past task doesn't look live.
+        const locked = String(t.id).split('::')[1] < todayIso;
+        return (
+          <Text key={t.id} onPress={locked ? undefined : () => onToggle(String(t.id))}>
+            <Text
+              style={{
+                color: t.done ? colors.muted : routineColorHex(t.color, isDark),
+                textDecorationLine: t.done ? 'line-through' : 'none',
+                opacity: locked && !t.done ? 0.5 : 1,
+              }}
+            >
+              {t.title}
+            </Text>
+            {i < tasks.length - 1 ? <Text style={{ color: colors.muted }}>{', '}</Text> : null}
           </Text>
-          {i < tasks.length - 1 ? <Text style={{ color: colors.muted }}>{', '}</Text> : null}
-        </Text>
-      ))}
+        );
+      })}
     </Text>
   );
 }
@@ -98,7 +113,7 @@ function WeekRow({ day, weekId, index }: { day: DayInfo; weekId: string; index: 
           >
             {day.label}
           </Text>
-          {dayTasks.length ? <TaskInline tasks={dayTasks} onToggle={toggleDone} /> : null}
+          {dayTasks.length ? <TaskInline tasks={dayTasks} onToggle={toggleDone} todayIso={todayIso} /> : null}
         </View>
       </PressScale>
     </FadeInUp>

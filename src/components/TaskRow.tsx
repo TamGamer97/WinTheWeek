@@ -68,8 +68,12 @@ export default function TaskRow({
   interactive?: boolean;
 }) {
   const { colors, radius, shadowSoft, isDark } = useTheme();
-  const { toggleDone, openTaskMenu } = useAppState();
+  const { toggleDone, openTaskMenu, todayIso } = useAppState();
   const wrapRef = useRef<View>(null);
+  // Every task's id is `${routineId}::${iso}` (see RoutineInstance) — a day
+  // that's already passed is a read-only record, not something to check off.
+  const taskIso = String(task.id).split('::')[1];
+  const locked = taskIso !== undefined && taskIso < todayIso;
   // The routine's own chosen color (routineColorHex is the single place this
   // ever resolves), not a hash of the id — so a task shows the same color
   // here as it does on the Week page, the day popup, and Manage Routines.
@@ -129,6 +133,7 @@ export default function TaskRow({
         onPress={() => toggleDone(String(task.id))}
         color={taskColor}
         variant={todayStyle ? 'today' : 'default'}
+        disabled={locked}
       />
     </>
   );

@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { androidTextFix, fonts } from '../theme/fonts';
-import { GearIcon } from '../icons/Icons';
+import { ChartBarIcon, GearIcon } from '../icons/Icons';
 import IconButton from './IconButton';
 import SlideDayTransition from './SlideDayTransition';
 
@@ -10,6 +10,7 @@ type Props = {
   title: string;
   subtitle?: string;
   onOpenSettings: () => void;
+  onOpenAnalytics?: () => void;
   paddingBottom?: number;
   transitionDayKey?: string;
   transitionDirection?: 'left' | 'right' | null;
@@ -19,6 +20,7 @@ export default function ScreenHeader({
   title,
   subtitle,
   onOpenSettings,
+  onOpenAnalytics,
   paddingBottom = 14,
   transitionDayKey,
   transitionDirection,
@@ -50,9 +52,16 @@ export default function ScreenHeader({
         ) : (
           heading
         )}
-        <IconButton onPress={onOpenSettings}>
-          <GearIcon color={colors.ink} />
-        </IconButton>
+        <View style={styles.actions}>
+          {onOpenAnalytics ? (
+            <IconButton onPress={onOpenAnalytics}>
+              <ChartBarIcon color={colors.ink} />
+            </IconButton>
+          ) : null}
+          <IconButton onPress={onOpenSettings}>
+            <GearIcon color={colors.ink} />
+          </IconButton>
+        </View>
       </View>
     </View>
   );
@@ -67,6 +76,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 8,
   },
   headline: {
     fontSize: 27,

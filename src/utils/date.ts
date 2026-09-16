@@ -77,6 +77,14 @@ export function weekIdFor(d: Date): string {
   return isoDate(startOfWeek(d));
 }
 
+// The real calendar date a specific weekday falls on within a given week —
+// e.g. "Wednesday of the week starting 2026-09-14" → '2026-09-16'. Used
+// wherever a weekId+DayKey pair needs to be compared against a real date
+// (chiefly: is this day in the past).
+export function isoForWeekDay(weekId: string, day: DayKey): string {
+  return isoDate(addDays(parseISODate(weekId), DAY_KEYS.indexOf(day)));
+}
+
 // The 7 real DayInfo entries (weekday, short label, day-of-month, full ISO
 // date) for the week starting on `weekStart` (must already be a Monday).
 export function getWeekDayInfos(weekStart: Date): DayInfo[] {

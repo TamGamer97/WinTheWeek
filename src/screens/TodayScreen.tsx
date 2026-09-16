@@ -16,12 +16,24 @@ import { formatDayHeading } from '../utils/date';
 
 export default function TodayScreen() {
   const { colors, radius } = useTheme();
-  const { currentDay, todayDirection, tasksFor, openSettings, todayWeekDays, todayWeekId, todayDayKey, openDaySheet } =
-    useAppState();
+  const {
+    currentDay,
+    todayDirection,
+    tasksFor,
+    openSettings,
+    openAnalytics,
+    todayWeekDays,
+    todayWeekId,
+    todayDayKey,
+    todayIso,
+    openDaySheet,
+  } = useAppState();
   const day = todayWeekDays.find((d) => d.key === currentDay)!;
   const dayTasks = tasksFor(todayWeekId, currentDay);
   const doneCount = dayTasks.filter((t) => t.done).length;
   const allDone = dayTasks.length > 0 && doneCount === dayTasks.length;
+  // A day already lived through is a read-only record — see docs/DECISIONS.md.
+  const isPastDay = day.iso < todayIso;
 
   // Reuses the same "plan this day" sheet the Week screen's day popup opens
   // (add/remove existing routines) — always pinned to the real current week
@@ -43,19 +55,21 @@ export default function TodayScreen() {
           >
             {label}
           </Text>
-          <PressScale
-            scaleTo={0.88}
-            onPress={addRoutineToDay}
-            hitSlop={8}
-            style={[styles.addBtn, { backgroundColor: colors.accentSoft, borderRadius: radius.pill }]}
-          >
-            <PlusIcon size={12} color={colors.accent} />
-          </PressScale>
+          {isPastDay ? null : (
+            <PressScale
+              scaleTo={0.88}
+              onPress={addRoutineToDay}
+              hitSlop={8}
+              style={[styles.addBtn, { backgroundColor: colors.accentSoft, borderRadius: radius.pill }]}
+            >
+              <PlusIcon size={12} color={colors.accent} />
+            </PressScale>
+          )}
         </View>
         {/* Row positions are local to a date. Remount on day changes so
             routines shared by two days cannot animate from their previous
             day's slot while the day-level slide transition is running. */}
-        <DraggableTaskList key={currentDay} tasks={tasks} />
+        <DraggableTaskList key={currentDay} tasks={tasks} locked={isPastDay} />
       </View>
     );
   };
@@ -71,6 +85,7 @@ export default function TodayScreen() {
         title={day.label}
         subtitle={formatDayHeading(day.iso)}
         onOpenSettings={openSettings}
+        onOpenAnalytics={openAnalytics}
         paddingBottom={6}
         transitionDayKey={currentDay}
         transitionDirection={todayDirection}
@@ -82,10 +97,14 @@ export default function TodayScreen() {
       <SlideDayTransition dayKey={currentDay} direction={todayDirection}>
         <View style={{ paddingHorizontal: 24, paddingTop: 16 }}>
           {dayTasks.length === 0 ? (
-            <>
-              <EmptyState icon="plus" title="Nothing planned" subtitle="Add something, or leave it open" />
-              <PrimaryButton label="Add a routine" onPress={addRoutineToDay} />
-            </>
+            isPastDay ? (
+              <EmptyState icon="plus" title="Nothing was planned" subtitle="This day has passed" />
+            ) : (
+              <>
+                <EmptyState icon="plus" title="Nothing planned" subtitle="Add something, or leave it open" />
+                <PrimaryButton label="Add a routine" onPress={addRoutineToDay} />
+              </>
+            )
           ) : (
             <>
               {renderSection('Routines', dayTasks)}

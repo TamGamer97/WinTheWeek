@@ -40,7 +40,10 @@ export function ScheduledRoutineRow({
   title: string;
   color: string;
   timesPerWeek: number;
-  onRemove: () => void;
+  // Omitted entirely (rather than a disabled button) for a past day's
+  // read-only record — there's nothing to undo about something that already
+  // happened.
+  onRemove?: () => void;
   compact?: boolean;
 }) {
   const { colors, radius, isDark } = useTheme();
@@ -57,13 +60,15 @@ export function ScheduledRoutineRow({
         </Text>
         <Meta timesPerWeek={timesPerWeek} muted={colors.muted} />
       </View>
-      <PressScale
-        scaleTo={0.88}
-        onPress={onRemove}
-        style={[styles.actionBtn, { backgroundColor: colors.paperRaised, borderColor: colors.line }]}
-      >
-        <RemoveDayIcon size={15} color={colors.muted} />
-      </PressScale>
+      {onRemove ? (
+        <PressScale
+          scaleTo={0.88}
+          onPress={onRemove}
+          style={[styles.actionBtn, { backgroundColor: colors.paperRaised, borderColor: colors.line }]}
+        >
+          <RemoveDayIcon size={15} color={colors.muted} />
+        </PressScale>
+      ) : null}
     </View>
   );
 }

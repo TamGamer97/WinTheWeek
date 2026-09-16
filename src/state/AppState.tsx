@@ -20,6 +20,7 @@ import {
   formatWeekRange,
   getWeekDayInfos,
   isoDate,
+  isoForWeekDay,
   parseISODate,
   startOfWeek,
   weekIdFor,
@@ -44,6 +45,15 @@ const LEGACY_ROUTINES_STORAGE_KEY = '@cadence/routines/v1';
 
 function isDayKey(v: unknown): v is DayKey {
   return typeof v === 'string' && (DAY_KEYS as string[]).includes(v);
+}
+
+// Order-independent equality — used to detect whether a routine edit
+// actually changed `defaultDays` (and so needs a `defaultDaysHistory`
+// snapshot), not just re-saved the same set in a different toggle order.
+function sameDayKeySet(a: DayKey[], b: DayKey[]): boolean {
+  if (a.length !== b.length) return false;
+  const setA = new Set(a);
+  return b.every((d) => setA.has(d));
 }
 
 function resolveColor(storedColor: unknown): string {
@@ -97,6 +107,21 @@ function restoreRoutinesV2(value: unknown): Routine[] | null {
       );
     }
 
+    // `defaultDaysHistory` is newer still too — data saved before past-day
+    // locking existed won't have it, so it just starts empty (every past
+    // week falls back to the live `defaultDays`, same as it always used to).
+    let defaultDaysHistory: { untilIso: string; days: DayKey[] }[] = [];
+    if (Array.isArray(record.defaultDaysHistory)) {
+      defaultDaysHistory = record.defaultDaysHistory.filter(
+        (entry): entry is { untilIso: string; days: DayKey[] } =>
+          !!entry &&
+          typeof entry === 'object' &&
+          typeof (entry as Record<string, unknown>).untilIso === 'string' &&
+          Array.isArray((entry as Record<string, unknown>).days) &&
+          ((entry as Record<string, unknown>).days as unknown[]).every(isDayKey),
+      );
+    }
+
     restored.push({
       id: record.id,
       title: record.title,
@@ -107,6 +132,7 @@ function restoreRoutinesV2(value: unknown): Routine[] | null {
       doneDates,
       order,
       dayOrder,
+      defaultDaysHistory,
     });
   }
 
@@ -149,6 +175,7 @@ function migrateLegacyRoutines(value: unknown, thisWeekStart: Date): Routine[] |
       doneDates,
       order: index,
       dayOrder: {},
+      defaultDaysHistory: [],
     });
   }
 
@@ -190,6 +217,8 @@ type AppStateValue = {
   selectDay: (key: DayKey) => void;
   openSettings: () => void;
   closeSettings: () => void;
+  openAnalytics: () => void;
+  closeAnalytics: () => void;
 
   // today (the Today screen always shows the real current week, regardless
   // of which week is being browsed on the Week screen)
@@ -447,6 +476,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     showScreen(previousScreen);
   }, [previousScreen, showScreen]);
 
+  const openAnalytics = useCallback(() => {
+    setPreviousScreen(activeScreen);
+    setActiveScreen('analytics');
+  }, [activeScreen]);
+
+  const closeAnalytics = useCallback(() => {
+    showScreen(previousScreen);
+  }, [previousScreen, showScreen]);
+
   const openAdd = useCallback((defaultDay: DayKeyOrUnscheduled) => {
     setSheetMode('add');
     setSheetTaskColor(DEFAULT_ROUTINE_COLOR);
@@ -476,17 +514,22 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   // is shared by the Week screen's day popup and the Today screen's quick
   // add) — always writes an explicit override for that one week, and never
   // touches the routine's default template.
-  const toggleRoutineForWeekDay = useCallback((routineId: number, wId: string, day: DayKey) => {
-    setRoutines((prev) =>
-      prev.map((r) => {
-        if (r.id !== routineId) return r;
-        const current = daysForWeek(r, wId);
-        const included = current.includes(day);
-        const days = included ? current.filter((d) => d !== day) : [...current, day];
-        return { ...r, schedule: { ...r.schedule, [wId]: days } };
-      }),
-    );
-  }, []);
+  const toggleRoutineForWeekDay = useCallback(
+    (routineId: number, wId: string, day: DayKey) => {
+      // A day that's already passed is a read-only record — see docs/DECISIONS.md.
+      if (isoForWeekDay(wId, day) < todayIso) return;
+      setRoutines((prev) =>
+        prev.map((r) => {
+          if (r.id !== routineId) return r;
+          const current = daysForWeek(r, wId);
+          const included = current.includes(day);
+          const days = included ? current.filter((d) => d !== day) : [...current, day];
+          return { ...r, schedule: { ...r.schedule, [wId]: days } };
+        }),
+      );
+    },
+    [todayIso],
+  );
 
   const deleteRoutine = useCallback((id: number) => {
     setRoutines((prev) => prev.filter((routine) => routine.id !== id));
@@ -499,23 +542,31 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   // touches the routine's default `order`, or any other date's `dayOrder`.
   // That's what keeps a routine shared by two days from having reordering
   // one day reorder the other.
-  const reorderRoutinesForDay = useCallback((iso: string, orderedVisibleIds: number[]) => {
-    setRoutines((prev) =>
-      prev.map((r) => {
-        const idx = orderedVisibleIds.indexOf(r.id);
-        if (idx === -1 || r.dayOrder[iso] === idx) return r;
-        return { ...r, dayOrder: { ...r.dayOrder, [iso]: idx } };
-      }),
-    );
-  }, []);
+  const reorderRoutinesForDay = useCallback(
+    (iso: string, orderedVisibleIds: number[]) => {
+      if (iso < todayIso) return;
+      setRoutines((prev) =>
+        prev.map((r) => {
+          const idx = orderedVisibleIds.indexOf(r.id);
+          if (idx === -1 || r.dayOrder[iso] === idx) return r;
+          return { ...r, dayOrder: { ...r.dayOrder, [iso]: idx } };
+        }),
+      );
+    },
+    [todayIso],
+  );
 
-  const toggleDone = useCallback((id: string) => {
-    if (!id.includes('::')) return;
-    const [rid, iso] = id.split('::');
-    setRoutines((prev) =>
-      prev.map((r) => (String(r.id) === rid ? { ...r, doneDates: { ...r.doneDates, [iso]: !r.doneDates[iso] } } : r)),
-    );
-  }, []);
+  const toggleDone = useCallback(
+    (id: string) => {
+      if (!id.includes('::')) return;
+      const [rid, iso] = id.split('::');
+      if (iso < todayIso) return;
+      setRoutines((prev) =>
+        prev.map((r) => (String(r.id) === rid ? { ...r, doneDates: { ...r.doneDates, [iso]: !r.doneDates[iso] } } : r)),
+      );
+    },
+    [todayIso],
+  );
 
   const openTaskMenu = useCallback((id: string, anchor: MenuAnchor) => {
     setMenuItemId(id);
@@ -558,20 +609,24 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   // can be handed to requestConfirm as the deferred action, and still work
   // correctly after the task menu popover — and its menuItemId — has
   // already closed while the confirmation dialog is up.
-  const menuRemoveRoutineDay = useCallback((id: string) => {
-    const [ridStr, iso] = id.split('::');
-    const wId = weekIdFor(parseISODate(iso));
-    const day = dayKeyOf(parseISODate(iso));
-    setRoutines((prev) =>
-      prev.map((r) => {
-        if (String(r.id) !== ridStr) return r;
-        const days = daysForWeek(r, wId).filter((d) => d !== day);
-        const doneDates = { ...r.doneDates };
-        delete doneDates[iso];
-        return { ...r, schedule: { ...r.schedule, [wId]: days }, doneDates };
-      }),
-    );
-  }, []);
+  const menuRemoveRoutineDay = useCallback(
+    (id: string) => {
+      const [ridStr, iso] = id.split('::');
+      if (iso < todayIso) return;
+      const wId = weekIdFor(parseISODate(iso));
+      const day = dayKeyOf(parseISODate(iso));
+      setRoutines((prev) =>
+        prev.map((r) => {
+          if (String(r.id) !== ridStr) return r;
+          const days = daysForWeek(r, wId).filter((d) => d !== day);
+          const doneDates = { ...r.doneDates };
+          delete doneDates[iso];
+          return { ...r, schedule: { ...r.schedule, [wId]: days }, doneDates };
+        }),
+      );
+    },
+    [todayIso],
+  );
 
   const changeFreq = useCallback((delta: number) => {
     setSheetRoutineFreq((freq) => {
@@ -695,6 +750,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           doneDates: {},
           order,
           dayOrder: {},
+          defaultDaysHistory: [],
         },
       ]);
       closeSheet();
@@ -707,12 +763,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       closeSheet();
       return;
     }
-    const days = [...sheetMultiDays];
+    // Defense in depth — the picker itself already excludes past days of
+    // the current week, but a plan can never write one in regardless.
+    const days = sheetMultiDays.filter((d) => isoForWeekDay(weekId, d) >= todayIso);
     setRoutines((prev) =>
       prev.map((r) => (r.id === sheetRoutineId ? { ...r, schedule: { ...r.schedule, [weekId]: days } } : r)),
     );
     closeSheet();
-  }, [sheetRoutineId, sheetMultiDays, weekId, closeSheet]);
+  }, [sheetRoutineId, sheetMultiDays, weekId, todayIso, closeSheet]);
 
   const confirmRoutineEdit = useCallback(
     (title: string) => {
@@ -721,22 +779,31 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       const trimmed = title.trim();
+      const newDefaultDays = [...sheetMultiDays];
       setRoutines((prev) =>
-        prev.map((r) =>
-          r.id === sheetRoutineId
-            ? {
-                ...r,
-                ...(trimmed ? { title: trimmed } : null),
-                color: sheetTaskColor,
-                timesPerWeek: sheetRoutineFreq,
-                defaultDays: [...sheetMultiDays],
-              }
-            : r,
-        ),
+        prev.map((r) => {
+          if (r.id !== sheetRoutineId) return r;
+          // Changing the regular days must never rewrite what already-past
+          // days resolved to — snapshot the days being replaced, tagged
+          // with today, before applying the new ones. daysForWeek() then
+          // resolves any date before today against this snapshot (or an
+          // earlier one) and today-or-later dates against the new value.
+          const defaultDaysHistory = sameDayKeySet(r.defaultDays, newDefaultDays)
+            ? r.defaultDaysHistory
+            : [...r.defaultDaysHistory, { untilIso: todayIso, days: r.defaultDays }];
+          return {
+            ...r,
+            ...(trimmed ? { title: trimmed } : null),
+            color: sheetTaskColor,
+            timesPerWeek: sheetRoutineFreq,
+            defaultDays: newDefaultDays,
+            defaultDaysHistory,
+          };
+        }),
       );
       closeSheet();
     },
-    [sheetRoutineId, sheetTaskColor, sheetRoutineFreq, sheetMultiDays, closeSheet],
+    [sheetRoutineId, sheetTaskColor, sheetRoutineFreq, sheetMultiDays, todayIso, closeSheet],
   );
 
   const confirmMoveRoutineDay = useCallback(() => {
@@ -748,6 +815,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     const toDay = sheetPickedDay;
     const wId = weekIdFor(parseISODate(fromIso));
     const toIso = isoDate(addDays(parseISODate(wId), DAY_KEYS.indexOf(toDay)));
+    // Neither the day being moved from nor the day it's moving to may be in
+    // the past — moving away from a past day would erase its record, and
+    // moving into one would rewrite it.
+    if (fromIso < todayIso || toIso < todayIso) {
+      closeSheet();
+      return;
+    }
     setRoutines((prev) =>
       prev.map((r) => {
         if (r.id !== sheetRoutineId) return r;
@@ -762,7 +836,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       }),
     );
     closeSheet();
-  }, [sheetPickedDay, sheetRoutineFromIso, sheetRoutineFromDay, sheetRoutineId, closeSheet]);
+  }, [sheetPickedDay, sheetRoutineFromIso, sheetRoutineFromDay, sheetRoutineId, todayIso, closeSheet]);
 
   const value = useMemo<AppStateValue>(
     () => ({
@@ -777,6 +851,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       selectDay,
       openSettings,
       closeSettings,
+      openAnalytics,
+      closeAnalytics,
       todayIso,
       todayWeekId,
       todayDayKey,
@@ -853,6 +929,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       selectDay,
       openSettings,
       closeSettings,
+      openAnalytics,
+      closeAnalytics,
       todayIso,
       todayWeekId,
       todayDayKey,

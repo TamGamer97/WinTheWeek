@@ -29,7 +29,7 @@ export default function SettingsScreen() {
         <View style={styles.row}>
           <View>
             <Text style={[styles.rowTitle, androidTextFix, { color: colors.ink, fontFamily: fonts.bodySemiBold }]}>Theme</Text>
-            <Text style={[styles.rowSub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>Choose how Cadence looks</Text>
+            <Text style={[styles.rowSub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>Choose how WinTheWeek looks</Text>
           </View>
         </View>
         <View style={styles.themeSelect}>

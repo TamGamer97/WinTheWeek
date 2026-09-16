@@ -42,6 +42,7 @@ export default function DraggableTaskList({
   tasks,
   renderTask,
   rowGap = DEFAULT_ROW_GAP,
+  locked = false,
 }: {
   tasks: RoutineInstance[];
   // The day-planning sheet shares this reorder behaviour but deliberately
@@ -49,6 +50,8 @@ export default function DraggableTaskList({
   renderTask?: (task: RoutineInstance) => React.ReactNode;
   // A sheet may use denser rows than the main Today list.
   rowGap?: number;
+  // A past day's list is a read-only record — no drag, no long-press menu.
+  locked?: boolean;
 }) {
   const { reorderRoutinesForDay } = useAppState();
 
@@ -219,6 +222,7 @@ export default function DraggableTaskList({
             dragY={dragY}
             dragging={isDragging}
             renderTask={renderTask}
+            locked={locked}
             onLayout={(e) => handleLayout(id, e)}
             onDragStart={() => startDrag(id)}
             onDragMove={(dy) => moveDrag(id, dy)}
@@ -236,6 +240,7 @@ function DraggableRow({
   dragY,
   dragging,
   renderTask,
+  locked,
   onLayout,
   onDragStart,
   onDragMove,
@@ -246,6 +251,7 @@ function DraggableRow({
   dragY: Animated.Value;
   dragging: boolean;
   renderTask?: (task: RoutineInstance) => React.ReactNode;
+  locked?: boolean;
   onLayout: (e: LayoutChangeEvent) => void;
   onDragStart: () => void;
   onDragMove: (dy: number) => void;
@@ -312,7 +318,7 @@ function DraggableRow({
   const responder = useRef<PanResponderInstance | null>(null);
   if (!responder.current) {
     responder.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => !locked,
       // Before the hold has cleared LONG_PRESS_MS, let the page's own
       // ScrollView take the touch away from us if it recognizes a scroll —
       // exactly how a normal Pressable already behaves in this app (this

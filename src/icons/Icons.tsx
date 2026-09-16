@@ -20,6 +20,16 @@ export function GearIcon({ size = 18, color = '#12141C' }: IconProps) {
   );
 }
 
+// A simple ascending bar chart — the header's entry point into Analytics,
+// sized and stroked to sit next to GearIcon.
+export function ChartBarIcon({ size = 18, color = '#12141C' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M6 19V14M12 19V8M18 19V11.5" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 export function ChevronLeftIcon({ size = 18, color = '#12141C' }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 18 18" fill="none">

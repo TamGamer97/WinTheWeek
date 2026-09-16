@@ -4,6 +4,7 @@ import { useAppState } from '../state/AppState';
 import WeekScreen from '../screens/WeekScreen';
 import TodayScreen from '../screens/TodayScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import AnalyticsScreen from '../screens/AnalyticsScreen';
 
 // Whichever screen becomes active rises in slightly. This is transform-only
 // so the incoming screen and its elevated cards are fully composed from the
@@ -36,6 +37,7 @@ export default function ScreenSwitcher() {
       {activeScreen === 'week' && <WeekScreen />}
       {activeScreen === 'today' && <TodayScreen />}
       {activeScreen === 'settings' && <SettingsScreen />}
+      {activeScreen === 'analytics' && <AnalyticsScreen />}
     </Animated.View>
   );
 }

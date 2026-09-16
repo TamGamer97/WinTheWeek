@@ -17,11 +17,12 @@ import { fonts } from '../theme/fonts';
 import { useAppState } from '../state/AppState';
 import { daysForWeek } from '../data/schedule';
 import { DayKey } from '../data/types';
-import { DAY_KEYS, addDays, dayMeta, formatDayHeading, isoDate, parseISODate, weekIdFor } from '../utils/date';
+import { DAY_KEYS, addDays, dayMeta, formatDayHeading, isoDate, isoForWeekDay, parseISODate, weekIdFor } from '../utils/date';
 import { MultiDayPicker, RoutineDayPickerExcluding } from './sheet/DayOptions';
 import {
   GhostButton,
   PrimaryButton,
+  SheetDescription,
   SheetHint,
   SheetLabel,
   SheetLinkButton,
@@ -41,6 +42,11 @@ import { CloseIcon } from '../icons/Icons';
 // enough — name, color, frequency, schedule — to deserve a full page rather
 // than the usual half-height sheet the other (simpler) modes use.
 const FULL_PAGE_MODES = new Set(['add', 'routineEdit']);
+
+// Routines are recurring habits, not one-off tasks — "Gym" reads better
+// every time it repeats than "Go to the gym" does. These rotate through
+// the Name field's placeholder to nudge that without a wall of copy.
+const ROUTINE_NAME_EXAMPLES = ['Gym', 'Reading', 'Meditation', 'Journaling'];
 
 const { height: SCREEN_H } = Dimensions.get('window');
 
@@ -254,7 +260,8 @@ function useAddContent() {
     body: (
       <View>
         <SheetLabel noMarginTop>Name</SheetLabel>
-        <SheetTextInput value={text} onChangeText={setText} placeholder="e.g. Go to the gym" />
+        <SheetTextInput value={text} onChangeText={setText} examples={ROUTINE_NAME_EXAMPLES} />
+        <SheetDescription>Keep it short and to the point - e.g. Gym or Reading.</SheetDescription>
 
         <TaskColorPicker value={sheetTaskColor} onChange={setTaskColor} />
         <Stepper value={sheetRoutineFreq} onChange={changeFreq} />
@@ -310,7 +317,8 @@ function useRoutineEditContent() {
     body: (
       <View>
         <SheetLabel noMarginTop>Name</SheetLabel>
-        <SheetTextInput value={text} onChangeText={setText} placeholder="e.g. Go to the gym" />
+        <SheetTextInput value={text} onChangeText={setText} examples={ROUTINE_NAME_EXAMPLES} />
+        <SheetDescription>Keep it short and to the point - e.g. Gym or Reading.</SheetDescription>
 
         <TaskColorPicker value={sheetTaskColor} onChange={setTaskColor} />
         <Stepper value={sheetRoutineFreq} onChange={changeFreq} />
@@ -336,23 +344,38 @@ function useRoutineEditContent() {
 // plans — the week being browsed on the Week screen, or the real current
 // week when opened from the Today screen's quick add — never assumed from
 // context, so this never accidentally edits the wrong one.
+//
+// A day (or, for "Not scheduled yet", a whole week) that's already passed
+// is a read-only record — see docs/DECISIONS.md. `locked` drives every
+// add/remove/reorder affordance below; today itself is never locked.
 function useDayContent() {
   const { colors } = useTheme();
-  const { sheetDayKey, sheetDayWeekId, tasksFor, pendingRoutines, routines, toggleRoutineForWeekDay, openAdd, closeSheet } =
-    useAppState();
+  const {
+    sheetDayKey,
+    sheetDayWeekId,
+    tasksFor,
+    pendingRoutines,
+    routines,
+    toggleRoutineForWeekDay,
+    openAdd,
+    closeSheet,
+    todayIso,
+    todayWeekId,
+  } = useAppState();
   const isUnsched = sheetDayKey === 'unscheduled';
   const wId = sheetDayWeekId ?? '';
   const dayKey = isUnsched ? null : (sheetDayKey as DayKey);
   const d = isUnsched ? null : dayMeta(sheetDayKey as DayKey);
   const dayIso = dayKey ? isoDate(addDays(parseISODate(wId), DAY_KEYS.indexOf(dayKey))) : '';
+  const locked = isUnsched ? wId < todayWeekId : dayIso !== '' && dayIso < todayIso;
 
   let listItems: React.ReactNode;
   if (isUnsched) {
     const pending = pendingRoutines(wId);
     listItems = pending.length ? (
-      pending.map((r) => <RoutinePendingRow key={r.id} routine={r} weekId={wId} />)
+      pending.map((r) => <RoutinePendingRow key={r.id} routine={r} weekId={wId} locked={locked} />)
     ) : (
-      <Text style={[styles.empty, { color: colors.muted }]}>All caught up</Text>
+      <Text style={[styles.empty, { color: colors.muted }]}>{locked ? 'Nothing left unscheduled' : 'All caught up'}</Text>
     );
   } else {
     const key = dayKey as DayKey;
@@ -365,21 +388,24 @@ function useDayContent() {
           <DraggableTaskList
             tasks={scheduled}
             rowGap={8}
+            locked={locked}
             renderTask={(t) => (
               <ScheduledRoutineRow
                 title={t.title}
                 color={t.color}
                 timesPerWeek={t.timesPerWeek}
-                onRemove={() => toggleRoutineForWeekDay(Number(String(t.id).split('::')[0]), wId, key)}
+                onRemove={
+                  locked ? undefined : () => toggleRoutineForWeekDay(Number(String(t.id).split('::')[0]), wId, key)
+                }
                 compact
               />
             )}
           />
         ) : (
-          <Text style={[styles.empty, { color: colors.muted }]}>Nothing here yet</Text>
+          <Text style={[styles.empty, { color: colors.muted }]}>{locked ? 'Nothing was planned' : 'Nothing here yet'}</Text>
         )}
 
-        {!routines.length ? (
+        {locked ? null : !routines.length ? (
           <PrimaryButton label="Create a routine" onPress={() => openAdd(key)} />
         ) : available.length ? (
           <>
@@ -401,7 +427,11 @@ function useDayContent() {
 
   return {
     title: isUnsched ? 'Not scheduled yet' : d?.label ?? '',
-    context: isUnsched ? 'Routines with no day chosen yet' : `${dayIso ? formatDayHeading(dayIso) : ''} · Plan this day`,
+    context: isUnsched
+      ? locked
+        ? 'Routines that were left unscheduled'
+        : 'Routines with no day chosen yet'
+      : `${dayIso ? formatDayHeading(dayIso) : ''} · ${locked ? 'This day has passed' : 'Plan this day'}`,
     body: (
       <View>
         <View style={styles.taskList}>{listItems}</View>
@@ -427,11 +457,16 @@ function useRoutinePlanContent() {
     weekId,
     weekLabel,
     isThisWeek,
+    todayIso,
   } = useAppState();
   const r = routines.find((r) => r.id === sheetRoutineId);
   const usualDays = r?.defaultDays ?? [];
   const matchesUsual =
     usualDays.length === sheetMultiDays.length && usualDays.every((d) => sheetMultiDays.includes(d));
+  // Only the current week can have already-passed days within it — a past
+  // week is never reachable here at all (its "Not scheduled yet" section
+  // has no add button — see useDayContent), and a future week has none.
+  const pastDays = isThisWeek ? DAY_KEYS.filter((day) => isoForWeekDay(weekId, day) < todayIso) : [];
 
   return {
     title: r?.title ?? '',
@@ -439,7 +474,7 @@ function useRoutinePlanContent() {
     body: (
       <View>
         <SheetLabel noMarginTop>Days</SheetLabel>
-        <MultiDayPicker selected={sheetMultiDays} max={sheetMultiMax} onToggle={toggleMultiDay} />
+        <MultiDayPicker selected={sheetMultiDays} max={sheetMultiMax} onToggle={toggleMultiDay} disabledDays={pastDays} />
         <SheetHint>
           {sheetMultiDays.length} of {r?.timesPerWeek ?? 0} days chosen
         </SheetHint>
@@ -463,10 +498,17 @@ function useMoveRoutineDayContent() {
     pickDay,
     confirmMoveRoutineDay,
     closeSheet,
+    todayIso,
+    todayWeekId,
   } = useAppState();
   const r = routines.find((r) => r.id === sheetRoutineId);
   const fromLabel = sheetRoutineFromDay ? dayMeta(sheetRoutineFromDay).label : '';
   const takenDays = r && sheetRoutineFromIso ? daysForWeek(r, weekIdFor(parseISODate(sheetRoutineFromIso))) : [];
+  // This sheet is only ever reached from the Today screen's task menu (see
+  // TaskMenu.tsx, which already hides "Switch day" for a past-day task), so
+  // the source is always this real week — excluding its already-passed days
+  // as destinations is what stops moving a task backward into the past.
+  const pastDays = DAY_KEYS.filter((day) => isoForWeekDay(todayWeekId, day) < todayIso);
   return {
     title: 'Move this day',
     context: `${r?.title ?? ''} — currently ${fromLabel}`,
@@ -477,6 +519,7 @@ function useMoveRoutineDayContent() {
           excludeDay={sheetRoutineFromDay}
           pickedDay={sheetPickedDay}
           onPick={(k) => pickDay(k)}
+          pastDays={pastDays}
         />
         <PrimaryButton label="Move to this day" onPress={confirmMoveRoutineDay} />
         <GhostButton label="Cancel" onPress={closeSheet} />
