@@ -124,6 +124,7 @@ function restoreRoutinesV2(value: unknown): Routine[] | null {
 
     restored.push({
       id: record.id,
+      ...(typeof record.createdIso === 'string' ? { createdIso: record.createdIso } : null),
       title: record.title,
       color: resolveColor(record.color),
       timesPerWeek: record.timesPerWeek,
@@ -679,8 +680,20 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const applyUsualDaysToPlan = useCallback(() => {
     const r = routines.find((r) => r.id === sheetRoutineId);
     if (!r) return;
-    setSheetMultiDays([...r.defaultDays].slice(0, sheetMultiMaxRef.current));
-  }, [routines, sheetRoutineId]);
+    // Past days already in the picker are locked commitments (the picker
+    // itself never lets them be toggled) — "usual days" only resets the
+    // still-choosable, today-or-later portion to match the routine's
+    // template, filling in around whatever the past already has, rather
+    // than overwriting it.
+    setSheetMultiDays((prev) => {
+      const lockedPast = prev.filter((d) => isoForWeekDay(weekId, d) < todayIso);
+      const usualUpcoming = r.defaultDays.filter(
+        (d) => isoForWeekDay(weekId, d) >= todayIso && !lockedPast.includes(d),
+      );
+      const room = Math.max(0, sheetMultiMaxRef.current - lockedPast.length);
+      return [...lockedPast, ...usualUpcoming.slice(0, room)];
+    });
+  }, [routines, sheetRoutineId, weekId, todayIso]);
 
   // Edits the routine itself — its color, weekly frequency, and default
   // template — never a specific week's plan.
@@ -742,6 +755,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         ...prev,
         {
           id,
+          createdIso: todayIso,
           title: trimmed,
           color,
           timesPerWeek: sheetRoutineFreq,
@@ -763,14 +777,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       closeSheet();
       return;
     }
-    // Defense in depth — the picker itself already excludes past days of
-    // the current week, but a plan can never write one in regardless.
-    const days = sheetMultiDays.filter((d) => isoForWeekDay(weekId, d) >= todayIso);
+    // No past-day filtering here: the picker itself never lets a past day
+    // be toggled (see useRoutinePlanContent), so sheetMultiDays' past-day
+    // membership only ever reflects what was already committed for this
+    // week when the sheet opened (or preserved by applyUsualDaysToPlan) —
+    // filtering it here would silently un-schedule an already-past day
+    // that the picker showed as locked-in, which is exactly what past-day
+    // locking is supposed to prevent.
     setRoutines((prev) =>
-      prev.map((r) => (r.id === sheetRoutineId ? { ...r, schedule: { ...r.schedule, [weekId]: days } } : r)),
+      prev.map((r) => (r.id === sheetRoutineId ? { ...r, schedule: { ...r.schedule, [weekId]: sheetMultiDays } } : r)),
     );
     closeSheet();
-  }, [sheetRoutineId, sheetMultiDays, weekId, todayIso, closeSheet]);
+  }, [sheetRoutineId, sheetMultiDays, weekId, closeSheet]);
 
   const confirmRoutineEdit = useCallback(
     (title: string) => {

@@ -15,10 +15,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
 import { fonts } from '../theme/fonts';
 import { useAppState } from '../state/AppState';
-import { daysForWeek } from '../data/schedule';
+import { daysForWeek, missedRegularDaysThisWeek } from '../data/schedule';
+import { routineColorHex } from '../theme/colors';
 import { DayKey } from '../data/types';
 import { DAY_KEYS, addDays, dayMeta, formatDayHeading, isoDate, isoForWeekDay, parseISODate, weekIdFor } from '../utils/date';
 import { MultiDayPicker, RoutineDayPickerExcluding } from './sheet/DayOptions';
+import RoutinePlanDayRow from './sheet/RoutinePlanDayRow';
 import {
   GhostButton,
   PrimaryButton,
@@ -429,9 +431,9 @@ function useDayContent() {
     title: isUnsched ? 'Not scheduled yet' : d?.label ?? '',
     context: isUnsched
       ? locked
-        ? 'Routines that were left unscheduled'
+        ? "This week has passed, so it can't be edited"
         : 'Routines with no day chosen yet'
-      : `${dayIso ? formatDayHeading(dayIso) : ''} · ${locked ? 'This day has passed' : 'Plan this day'}`,
+      : `${dayIso ? formatDayHeading(dayIso) : ''} · ${locked ? "Passed — can't be edited" : 'Plan this day'}`,
     body: (
       <View>
         <View style={styles.taskList}>{listItems}</View>
@@ -443,8 +445,12 @@ function useDayContent() {
 
 // Plans a routine's remaining days for the week currently being browsed —
 // only ever writes that one week's schedule, never the routine's color,
-// frequency, or default template.
+// frequency, or default template. Each day is shown as a full row (badge,
+// day name, and — read-only — whatever else is already on it that week)
+// rather than a bare grid of weekday letters, so picking days means seeing
+// the week's actual shape instead of guessing at it blind.
 function useRoutinePlanContent() {
+  const { isDark } = useTheme();
   const {
     routines,
     sheetRoutineId,
@@ -453,20 +459,31 @@ function useRoutinePlanContent() {
     toggleMultiDay,
     confirmRoutinePlan,
     applyUsualDaysToPlan,
+    openRoutineEdit,
     closeSheet,
     weekId,
+    weekDays,
     weekLabel,
     isThisWeek,
     todayIso,
+    tasksFor,
   } = useAppState();
   const r = routines.find((r) => r.id === sheetRoutineId);
   const usualDays = r?.defaultDays ?? [];
   const matchesUsual =
     usualDays.length === sheetMultiDays.length && usualDays.every((d) => sheetMultiDays.includes(d));
-  // Only the current week can have already-passed days within it — a past
-  // week is never reachable here at all (its "Not scheduled yet" section
-  // has no add button — see useDayContent), and a future week has none.
-  const pastDays = isThisWeek ? DAY_KEYS.filter((day) => isoForWeekDay(weekId, day) < todayIso) : [];
+  const routineColor = routineColorHex(r?.color, isDark);
+  // See docs/DECISIONS.md: a regular day added mid-week can't retroactively
+  // apply to its own already-passed date — flag those rows so the picker
+  // explains the shortfall instead of leaving it looking like a mistake.
+  const missedRegular = r && isThisWeek ? missedRegularDaysThisWeek(r, weekId, todayIso) : [];
+  // Which of the usual days "Use usual days" would try to add are already
+  // past this week (and not already locked in) — applyUsualDaysToPlan
+  // silently leaves these out (see docs/DECISIONS.md), so flag them here
+  // rather than letting the click look like it just didn't work.
+  const usualDaysPastSkip = usualDays.filter(
+    (d) => isoForWeekDay(weekId, d) < todayIso && !sheetMultiDays.includes(d),
+  );
 
   return {
     title: r?.title ?? '',
@@ -474,12 +491,46 @@ function useRoutinePlanContent() {
     body: (
       <View>
         <SheetLabel noMarginTop>Days</SheetLabel>
-        <MultiDayPicker selected={sheetMultiDays} max={sheetMultiMax} onToggle={toggleMultiDay} disabledDays={pastDays} />
+        {weekDays.map((day, index) => {
+          const picked = sheetMultiDays.includes(day.key);
+          // Only the current week can have already-passed days within it —
+          // a past week is never reachable here at all (its "Not scheduled
+          // yet" section has no add button — see useDayContent).
+          const isPast = isThisWeek && day.iso < todayIso;
+          const disabled = isPast || (!picked && sheetMultiDays.length >= sheetMultiMax);
+          const otherTasks = tasksFor(weekId, day.key).filter(
+            (t) => Number(String(t.id).split('::')[0]) !== sheetRoutineId,
+          );
+          return (
+            <RoutinePlanDayRow
+              key={day.iso}
+              day={day}
+              index={index}
+              picked={picked}
+              disabled={disabled}
+              isToday={day.iso === todayIso}
+              otherTasks={otherTasks}
+              missedRegular={missedRegular.includes(day.key)}
+              routineColor={routineColor}
+              onToggle={() => toggleMultiDay(day.key)}
+            />
+          );
+        })}
         <SheetHint>
           {sheetMultiDays.length} of {r?.timesPerWeek ?? 0} days chosen
         </SheetHint>
-        {usualDays.length && !matchesUsual ? (
-          <SheetLinkButton label="Use usual days" onPress={applyUsualDaysToPlan} />
+        <View style={styles.usualDaysRow}>
+          {usualDays.length && !matchesUsual ? (
+            <SheetLinkButton label="Use usual days" onPress={applyUsualDaysToPlan} />
+          ) : null}
+          {r ? <SheetLinkButton label="Edit usual days" onPress={() => openRoutineEdit(r.id)} /> : null}
+        </View>
+        {usualDays.length && !matchesUsual && usualDaysPastSkip.length ? (
+          <SheetHint>
+            {usualDaysPastSkip.length === 1
+              ? `${dayMeta(usualDaysPastSkip[0]).label} already passed, so it won't be added`
+              : "Some usual days already passed, so they won't be added"}
+          </SheetHint>
         ) : null}
         <PrimaryButton label="Save" onPress={confirmRoutinePlan} />
         <GhostButton label="Cancel" onPress={closeSheet} />
@@ -593,6 +644,12 @@ const styles = StyleSheet.create({
   },
   scheduleSection: {
     marginTop: 8,
+  },
+  usualDaysRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    columnGap: 16,
   },
   empty: {
     textAlign: 'center',

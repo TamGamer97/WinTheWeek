@@ -65,21 +65,14 @@ export function MultiDayPicker({
   selected,
   max,
   onToggle,
-  disabledDays,
 }: {
   selected: DayKey[];
   max: number;
   onToggle: (key: DayKey) => void;
-  // Days that can't be picked at all — used only when planning the current
-  // week, to exclude days that have already passed (see BottomSheet.tsx's
-  // useRoutinePlanContent). Editing a routine's own regular-days template
-  // has no "past" of its own, so it never passes this.
-  disabledDays?: DayKey[];
 }) {
   const opts: Opt[] = DAY_KEYS.map((key) => {
     const picked = selected.includes(key);
-    const pastDay = disabledDays?.includes(key) ?? false;
-    const disabled = pastDay || (!picked && selected.length >= max);
+    const disabled = !picked && selected.length >= max;
     return { key, label: DAY_SHORT[key], picked, disabled, onPress: disabled ? undefined : () => onToggle(key) };
   });
   return <OptionGrid opts={opts} />;

@@ -35,8 +35,12 @@ export type DayInfo = {
 // changes `defaultDays`, so `daysForWeek()` can resolve any past day
 // against whichever template really applied to it, while today-and-later
 // days pick up the new one. See `docs/DECISIONS.md`.
+// `createdIso`, when present, prevents a newly-created routine from appearing
+// on dates before it existed. It is optional for backwards compatibility with
+// routines saved before creation dates were recorded.
 export type Routine = {
   id: number;
+  createdIso?: string;
   title: string;
   color: string;
   timesPerWeek: number;

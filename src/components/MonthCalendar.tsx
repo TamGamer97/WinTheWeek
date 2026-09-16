@@ -1,11 +1,12 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { androidTextFix, fonts } from '../theme/fonts';
 import { ChevronLeftIcon, ChevronRightIcon } from '../icons/Icons';
 import PressScale from './PressScale';
 import { useAppState } from '../state/AppState';
 import { formatMonthYear, getMonthGridWeeks } from '../utils/date';
+import useMonthTransition from './useMonthTransition';
 
 const WEEKDAY_INITIALS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -22,6 +23,7 @@ export default function MonthCalendar() {
     useAppState();
 
   const weeks = getMonthGridWeeks(monthViewAnchor);
+  const transitionStyle = useMonthTransition(monthViewAnchor);
 
   return (
     <View>
@@ -39,64 +41,66 @@ export default function MonthCalendar() {
         </PressScale>
       </View>
 
-      <View style={styles.weekdayRow}>
-        {WEEKDAY_INITIALS.map((label, i) => (
-          <Text
-            key={`${label}-${i}`}
-            style={[styles.weekdayLabel, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyBold }]}
-          >
-            {label}
-          </Text>
-        ))}
-      </View>
+      <Animated.View style={transitionStyle}>
+        <View style={styles.weekdayRow}>
+          {WEEKDAY_INITIALS.map((label, i) => (
+            <Text
+              key={`${label}-${i}`}
+              style={[styles.weekdayLabel, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyBold }]}
+            >
+              {label}
+            </Text>
+          ))}
+        </View>
 
-      {weeks.map((week) => {
-        const isCurrentWeek = week[0].iso === weekId;
-        return (
-          <View
-            key={week[0].iso}
-            style={[
-              styles.weekRow,
-              { borderRadius: radius.md },
-              isCurrentWeek && { backgroundColor: colors.accentSoft },
-            ]}
-          >
-            {week.map((day) => {
-              const isToday = day.iso === todayIso;
-              return (
-                <PressScale
-                  key={day.iso}
-                  scaleTo={0.88}
-                  onPress={() => goToWeekOf(day.iso)}
-                  style={styles.dayCell}
-                >
-                  <View
-                    style={[
-                      styles.dayMark,
-                      { borderRadius: radius.pill },
-                      isToday && { borderWidth: 1.5, borderColor: colors.accent },
-                    ]}
+        {weeks.map((week) => {
+          const isCurrentWeek = week[0].iso === weekId;
+          return (
+            <View
+              key={week[0].iso}
+              style={[
+                styles.weekRow,
+                { borderRadius: radius.md },
+                isCurrentWeek && { backgroundColor: colors.accentSoft },
+              ]}
+            >
+              {week.map((day) => {
+                const isToday = day.iso === todayIso;
+                return (
+                  <PressScale
+                    key={day.iso}
+                    scaleTo={0.88}
+                    onPress={() => goToWeekOf(day.iso)}
+                    style={styles.dayCell}
                   >
-                    <Text
+                    <View
                       style={[
-                        styles.dayText,
-                        androidTextFix,
-                        {
-                          color: !day.inMonth ? colors.muted : isToday ? colors.accent : colors.ink,
-                          opacity: day.inMonth ? 1 : 0.4,
-                          fontFamily: isToday ? fonts.bodyBold : fonts.bodyRegular,
-                        },
+                        styles.dayMark,
+                        { borderRadius: radius.pill },
+                        isToday && { borderWidth: 1.5, borderColor: colors.accent },
                       ]}
                     >
-                      {day.dayOfMonth}
-                    </Text>
-                  </View>
-                </PressScale>
-              );
-            })}
-          </View>
-        );
-      })}
+                      <Text
+                        style={[
+                          styles.dayText,
+                          androidTextFix,
+                          {
+                            color: !day.inMonth ? colors.muted : isToday ? colors.accent : colors.ink,
+                            opacity: day.inMonth ? 1 : 0.4,
+                            fontFamily: isToday ? fonts.bodyBold : fonts.bodyRegular,
+                          },
+                        ]}
+                      >
+                        {day.dayOfMonth}
+                      </Text>
+                    </View>
+                  </PressScale>
+                );
+              })}
+            </View>
+          );
+        })}
+      </Animated.View>
     </View>
   );
 }

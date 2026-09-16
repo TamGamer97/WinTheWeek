@@ -81,6 +81,17 @@ export default function SettingsScreen() {
           <Switch value={weekStartsMonday} onValueChange={setWeekStartsMonday} />
         </View>
       </View>
+
+      <Text style={[styles.sectionLabel, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyBold }]}>About</Text>
+      <View style={[styles.card, { backgroundColor: colors.paperRaised, borderColor: colors.line, borderRadius: radius.lg }, shadowCard]}>
+        <View style={styles.row}>
+          <View>
+            <Text style={[styles.rowTitle, androidTextFix, { color: colors.ink, fontFamily: fonts.bodySemiBold }]}>Version</Text>
+            <Text style={[styles.rowSub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>WinTheWeek release</Text>
+          </View>
+          <Text style={[styles.version, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyMedium }]}>0.0.1</Text>
+        </View>
+      </View>
     </View>
   );
 }
@@ -133,6 +144,9 @@ const styles = StyleSheet.create({
   rowSub: {
     fontSize: 12.5,
     marginTop: 2,
+  },
+  version: {
+    fontSize: 13,
   },
   themeSelect: {
     paddingHorizontal: 16,

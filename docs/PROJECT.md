@@ -128,6 +128,11 @@ past-day locking existed) — all three fields were added to
 `restoreRoutinesV2` as optional, defaulted reads rather than a version
 bump, and any future field addition should follow that same precedent
 unless the shape change is actually incompatible with old data.
+Fresh installs have no routines; the empty in-memory initial state is only
+used until storage hydration completes or when no saved data exists.
+New routines record their creation date, and the schedule resolver excludes
+all dates before that boundary. Older saved routines without this field keep
+their existing behavior.
 
 ## State (`src/state/AppState.tsx`)
 
@@ -153,9 +158,12 @@ Week screen happens to be browsing.
 Settings and Analytics are both reached the same way: `openSettings`/
 `openAnalytics` stash the current screen into a single shared
 `previousScreen`, then `closeSettings`/`closeAnalytics` return to it via
-`showScreen`. This is safe only because the two can't be opened from
-within each other; a third such screen would need to confirm that's still
-true before reusing `previousScreen` again.
+`showScreen`. Android's system back action is handled at the app shell and
+uses those same close actions, so it returns to the originating Today/Week
+screen; transient overlays (confirm dialog, task menu, or bottom sheet) close
+first. This is safe only because the two can't be opened from within each
+other; a third such screen would need to confirm that's still true before
+reusing `previousScreen` again.
 
 ## The bottom sheet system (`src/components/BottomSheet.tsx`)
 
@@ -206,23 +214,40 @@ Any real date strictly before `todayIso` is a read-only record — today
 itself stays fully editable. This is enforced at two layers:
 
 - **`AppState`** is the source of truth: `toggleDone`, `toggleRoutineForWeekDay`,
-  `reorderRoutinesForDay`, `menuRemoveRoutineDay`, and `confirmMoveRoutineDay`
-  each no-op if the date involved is in the past; `confirmRoutinePlan` filters
-  any past day out of what it saves. These guards apply regardless of which
-  UI path reaches them.
+  `reorderRoutinesForDay`, and `menuRemoveRoutineDay` each no-op if the date
+  involved is in the past; `confirmMoveRoutineDay` no-ops if either the
+  source or destination date is past. These guards apply regardless of
+  which UI path reaches them. `confirmRoutinePlan` is deliberately *not*
+  guarded this way — see `docs/DECISIONS.md` for why filtering there is a
+  bug, not a safety net.
 - **The UI** reflects the same cutoff so it reads as read-only rather than a
   silent no-op: `Check`/`TaskRow` dim and disable the checkbox, `DraggableTaskList`
   takes a `locked` prop that disables drag and the long-press menu, `TaskMenu`
   hides "Switch day"/"Remove this day" (but keeps "Edit routine" — that's
   routine-level, not day-specific), the day-planning sheet
   (`BottomSheet.tsx`'s `useDayContent`) hides its add/remove affordances and
-  swaps its copy, and the move-day/routine-plan day pickers
-  (`sheet/DayOptions.tsx`) exclude past days as selectable.
+  swaps its copy, and the move-day picker (`sheet/DayOptions.tsx`) and the
+  routine-plan day rows (`sheet/RoutinePlanDayRow.tsx`) exclude/disable past
+  days as selectable.
 
 When adding a new day-specific mutation, add its guard to `AppState` first
 (so it's safe no matter what UI reaches it), then make the UI path that
 triggers it reflect the locked state rather than leaving a live-looking
-control that silently does nothing.
+control that silently does nothing. Disabling or hiding a control isn't
+enough on its own either — pair it with a short, plainly-worded explanation
+(e.g. TodayScreen's always-visible "This day has passed, so it can't be
+edited" banner for a locked day, not just an absent "+") so the read-only
+state reads as intentional rather than a bug.
+
+`missedRegularDaysThisWeek(routine, weekId, todayIso)` (`src/data/schedule.ts`)
+covers a related, easy-to-miss confusion: adding a day to a routine's
+regular-days template mid-week can't retroactively apply to that day if it
+already passed (see `daysForWeek`'s per-day resolution above), so the
+current week can look "short" by one day with no obvious reason. This
+surfaces that reason directly — `RoutinePendingRow`'s "Not scheduled yet"
+note and the matching day row in the routine-plan sheet
+(`sheet/RoutinePlanDayRow.tsx`) — rather than leaving it looking like the
+day picker silently ignored a choice.
 
 ## Month-view calendar (`src/components/MonthCalendar.tsx`)
 
@@ -320,9 +345,9 @@ App.tsx                        Root: font loading, providers, screen chrome, sta
 src/theme/                     colors.ts (palettes, routineColorHex, shadows),
                                 fonts.ts (font names, androidTextFix), ThemeContext.tsx
 src/data/types.ts               Routine, RoutineInstance, DayKey, SheetMode, ScreenName
-src/data/schedule.ts            daysForWeek() — the one schedule resolver
+src/data/schedule.ts            daysForWeek() — the one schedule resolver, including creation boundaries
 src/data/analytics.ts           Pure stat helpers (streaks, month/day completion)
-src/data/seed.ts                Initial/default routine data
+src/data/seed.ts                Empty fresh-install initial state
 src/state/AppState.tsx          All app state/logic (single context)
 src/utils/date.ts               Pure date helpers: weeks, month grid, formatting
 src/icons/Icons.tsx              All SVG icons
@@ -342,7 +367,13 @@ src/screens/                    WeekScreen, TodayScreen, SettingsScreen, Analyti
 ```
 npm install
 npx expo start        # press i / a / w, or scan the QR code
+npm run build:android:preview  # EAS internal APK build
 ```
+
+The `preview` EAS profile in `eas.json` produces an installable Android APK.
+It requires an authenticated EAS CLI session and a configured EAS project;
+the app release version is defined in `app.json` and currently displays as
+`0.0.1` in Settings.
 
 There is no CI and no automated test suite; see `AGENTS.md` for how to
 verify a change in this repo.

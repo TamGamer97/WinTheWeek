@@ -29,7 +29,6 @@ export default function RoutinePendingRow({
   const remaining = routine.timesPerWeek - planned;
   const complete = remaining <= 0;
   const hex = routineColorHex(routine.color, isDark);
-
   return (
     <FadeInUp duration={240}>
       <View style={[styles.row, { backgroundColor: colors.paper, borderRadius: radius.lg }]}>

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Platform, StatusBar as NativeStatusBar, StyleSheet, View } from 'react-native';
+import { BackHandler, Platform, StatusBar as NativeStatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as SystemUI from 'expo-system-ui';
 import {
@@ -71,10 +71,66 @@ function ThemedSafeAreaProvider({ children }: { children: React.ReactNode }) {
 
 function AppShell() {
   const { isDark, colors } = useTheme();
-  const { activeScreen } = useAppState();
+  const {
+    activeScreen,
+    closeAnalytics,
+    closeSettings,
+    closeSheet,
+    closeTaskMenu,
+    cancelConfirm,
+    confirmRequest,
+    menuItemId,
+    previousScreen,
+    sheetOpen,
+  } = useAppState();
   const insets = useSafeAreaInsets();
   const showChrome = activeScreen !== 'settings' && activeScreen !== 'analytics';
   const statusBarHeight = Math.max(insets.top, NativeStatusBar.currentHeight ?? 0);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      // Back closes the foremost transient surface before navigating away
+      // from the underlying screen, matching the visual stacking order.
+      if (confirmRequest) {
+        cancelConfirm();
+        return true;
+      }
+      if (menuItemId) {
+        closeTaskMenu();
+        return true;
+      }
+      if (sheetOpen) {
+        closeSheet();
+        return true;
+      }
+      if (activeScreen === 'settings') {
+        closeSettings();
+        return true;
+      }
+      if (activeScreen === 'analytics') {
+        closeAnalytics();
+        return true;
+      }
+
+      // Let Android finish the activity from the two root screens.
+      return false;
+    });
+
+    return () => subscription.remove();
+  }, [
+    activeScreen,
+    cancelConfirm,
+    closeAnalytics,
+    closeSettings,
+    closeSheet,
+    closeTaskMenu,
+    confirmRequest,
+    menuItemId,
+    previousScreen,
+    sheetOpen,
+  ]);
 
   // Keep the native decor/root background in sync as a fallback during
   // startup, reloads, and any frame where the React view tree is absent.

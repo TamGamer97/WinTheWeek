@@ -96,9 +96,22 @@ export default function TodayScreen() {
 
       <SlideDayTransition dayKey={currentDay} direction={todayDirection}>
         <View style={{ paddingHorizontal: 24, paddingTop: 16 }}>
+          {/* Always visible for a past day (not just when empty) — the "+"
+              button and checkboxes are simply absent/disabled elsewhere, so
+              this is what actually explains why, instead of a silent gap. */}
+          {isPastDay ? (
+            <View style={[styles.pastBanner, { backgroundColor: colors.line }]}>
+              <Text
+                style={[styles.pastBannerText, androidTextFix, { color: colors.inkSoft, fontFamily: fonts.bodyMedium }]}
+              >
+                This day has passed, so it can't be edited
+              </Text>
+            </View>
+          ) : null}
+
           {dayTasks.length === 0 ? (
             isPastDay ? (
-              <EmptyState icon="plus" title="Nothing was planned" subtitle="This day has passed" />
+              <EmptyState icon="plus" title="Nothing was planned" subtitle="No routines were scheduled" />
             ) : (
               <>
                 <EmptyState icon="plus" title="Nothing planned" subtitle="Add something, or leave it open" />
@@ -142,6 +155,16 @@ export default function TodayScreen() {
 }
 
 const styles = StyleSheet.create({
+  pastBanner: {
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 16,
+  },
+  pastBannerText: {
+    fontSize: 13,
+    textAlign: 'center',
+  },
   section: {
     marginBottom: 22,
   },

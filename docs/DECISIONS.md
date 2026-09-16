@@ -213,12 +213,25 @@ it belongs in or beside the calendar card, not the headline row.
 
 ---
 
+**Decision:** Android's system back action is handled once at the app shell.
+
+**Reason:** The app uses app-level screen state rather than a navigation
+library, so Settings and Analytics need to return to the screen recorded in
+`previousScreen` when the user uses Android's back gesture or button. The
+handler also closes the foremost transient surface first — confirmation
+dialog, task menu, then bottom sheet — before considering screen navigation.
+
+**Consequence:** Keep this precedence in `App.tsx` when adding another
+transient surface or app-level screen. Root Today/Week screens return `false`
+so Android can finish the activity normally.
+
+---
+
 **Decision:** Every real date strictly before `todayIso` is read-only —
 `AppState` rejects `toggleDone`, `toggleRoutineForWeekDay`,
-`reorderRoutinesForDay`, `menuRemoveRoutineDay`, and `confirmMoveRoutineDay`
-for a past date (and `confirmRoutinePlan` filters past days out of what it
-saves), regardless of which UI path calls them. Today itself is never
-locked.
+`reorderRoutinesForDay`, and `menuRemoveRoutineDay` for a past date, and
+`confirmMoveRoutineDay` rejects a move whose source or destination is past
+— regardless of which UI path calls them. Today itself is never locked.
 
 **Reason:** Explicit product requirement — being able to add, remove, or
 check off a routine on an already-passed day defeats the point of a routine
@@ -233,6 +246,20 @@ checkboxes, hidden add/remove buttons, `DraggableTaskList`'s `locked` prop,
 `TaskMenu` hiding "Switch day"/"Remove this day") only has to make that
 already-enforced read-only state legible. See `docs/PROJECT.md`'s "Past-day
 locking" section for the full guard list.
+
+**`confirmRoutinePlan` is the one exception, deliberately: it does *not*
+filter past days out of `sheetMultiDays` before saving.** That filter was
+tried and is a bug, not a safety net — `useRoutinePlanContent`'s day-row
+picker already disables every past day unconditionally (whether picked or
+not), so a past day's presence in `sheetMultiDays` only ever reflects what
+`openRoutinePlanner` loaded from the routine's actual already-committed
+schedule for that week (`applyUsualDaysToPlan` preserves it too, the same
+way). Filtering "past days" out at save time doesn't add safety — it
+silently un-schedules a real, already-locked commitment the moment the
+sheet is saved for any other reason, which is exactly what this decision
+exists to prevent. Don't re-add that filter; if a new way to reach this
+sheet is added, make sure it also pre-populates `sheetMultiDays` from the
+real committed schedule rather than reintroducing save-time filtering.
 
 ---
 
@@ -264,6 +291,12 @@ comparison — see `sameDayKeySet` in `AppState.tsx`); re-saving the same
 days must not grow the array. `schedule[weekId]` (manual per-week planning)
 is a separate, higher-priority mechanism and this history never writes to
 it or reads from it.
+
+New routines also carry an optional `createdIso` boundary. `daysForWeek()`
+excludes dates before that boundary, so a routine created midweek with Monday
+as a regular day begins on the next Monday rather than appearing on the
+already-passed Monday. The field is optional so older saved routines remain
+backwards-compatible.
 
 ---
 

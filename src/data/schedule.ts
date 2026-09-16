@@ -25,6 +25,25 @@ export function daysForWeek(routine: Routine, weekId: string): DayKey[] {
   if (weekId in routine.schedule) return routine.schedule[weekId];
   return DAY_KEYS.filter((day) => {
     const iso = isoDate(addDays(parseISODate(weekId), DAY_KEYS.indexOf(day)));
+    if (routine.createdIso && iso < routine.createdIso) return false;
     return defaultDaysAt(routine, iso).includes(day);
+  });
+}
+
+// Days that are part of the routine's *current* regular-days template but
+// didn't actually land on this week — because their real date already
+// passed before the template changed to include them (see
+// `defaultDaysHistory`). Without this, a person who just added, say,
+// Monday as a regular day mid-week sees the week still short by one day
+// with no obvious reason why, since Monday already happened before the
+// edit could apply to it (see docs/DECISIONS.md). Meaningless — and
+// always `[]` — for a week with an explicit `schedule[weekId]` override,
+// since that replaces the template entirely for that week.
+export function missedRegularDaysThisWeek(routine: Routine, weekId: string, todayIso: string): DayKey[] {
+  if (weekId in routine.schedule) return [];
+  const resolved = daysForWeek(routine, weekId);
+  return routine.defaultDays.filter((day) => {
+    const iso = isoDate(addDays(parseISODate(weekId), DAY_KEYS.indexOf(day)));
+    return iso < todayIso && !resolved.includes(day);
   });
 }

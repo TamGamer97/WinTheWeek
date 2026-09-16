@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { useTheme } from '../theme/ThemeContext';
 import { androidTextFix, fonts } from '../theme/fonts';
@@ -8,6 +8,7 @@ import PressScale from './PressScale';
 import { Routine } from '../data/types';
 import { dayCompletion } from '../data/analytics';
 import { formatMonthYear, getMonthGridWeeks } from '../utils/date';
+import useMonthTransition from './useMonthTransition';
 
 const WEEKDAY_INITIALS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -21,8 +22,8 @@ const CENTER = CELL / 2;
 // or future — there's nothing to judge); once something was planned, the
 // circle itself becomes the readout — a soft red wash at 0%, a soft blue
 // wash with a precise blue arc for anything in between, and a solid green
-// disc once everything for that day is done. Colors are the app's own
-// tokens throughout (accent, danger, complete), never invented ones.
+// disc once everything for that day is done. Today is intentionally handled
+// by the calendar as an in-progress neutral day, rather than judged yet.
 function DayRing({ planned, done }: { planned: number; done: number }) {
   const { colors } = useTheme();
   if (planned === 0) return null;
@@ -79,6 +80,7 @@ export default function ProgressRingCalendar({
 }) {
   const { colors, radius } = useTheme();
   const weeks = getMonthGridWeeks(monthAnchor);
+  const transitionStyle = useMonthTransition(monthAnchor);
 
   return (
     <View>
@@ -94,44 +96,48 @@ export default function ProgressRingCalendar({
         </PressScale>
       </View>
 
-      <View style={styles.weekdayRow}>
-        {WEEKDAY_INITIALS.map((label, i) => (
-          <Text key={`${label}-${i}`} style={[styles.weekdayLabel, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyBold }]}>
-            {label}
-          </Text>
-        ))}
-      </View>
-
-      {weeks.map((week) => (
-        <View key={week[0].iso} style={styles.weekRow}>
-          {week.map((day) => {
-            const isToday = day.iso === todayIso;
-            const isFuture = day.iso > todayIso;
-            const { planned, done } = day.inMonth && !isFuture ? dayCompletion(routines, day.iso) : { planned: 0, done: 0 };
-            const hasNothingTracked = day.inMonth && !isFuture && planned === 0;
-            return (
-              <View key={day.iso} style={styles.dayCell}>
-                <View style={[styles.dayMark, { borderRadius: radius.pill }, isToday && { borderWidth: 1.5, borderColor: colors.accent }]}>
-                  {day.inMonth ? <DayRing planned={planned} done={done} /> : null}
-                  <Text
-                    style={[
-                      styles.dayText,
-                      androidTextFix,
-                      {
-                        color: !day.inMonth ? colors.muted : hasNothingTracked ? colors.muted : planned > 0 && done >= planned ? '#fff' : colors.ink,
-                        opacity: day.inMonth ? 1 : 0.35,
-                        fontFamily: isToday ? fonts.bodyBold : fonts.bodyRegular,
-                      },
-                    ]}
-                  >
-                    {day.dayOfMonth}
-                  </Text>
-                </View>
-              </View>
-            );
-          })}
+      <Animated.View style={transitionStyle}>
+        <View style={styles.weekdayRow}>
+          {WEEKDAY_INITIALS.map((label, i) => (
+            <Text key={`${label}-${i}`} style={[styles.weekdayLabel, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyBold }]}>
+              {label}
+            </Text>
+          ))}
         </View>
-      ))}
+
+        {weeks.map((week) => (
+          <View key={week[0].iso} style={styles.weekRow}>
+            {week.map((day) => {
+              const isToday = day.iso === todayIso;
+              const isFuture = day.iso > todayIso;
+              const isTrackedDay = day.inMonth && !isFuture && !isToday;
+              const { planned, done } = isTrackedDay ? dayCompletion(routines, day.iso) : { planned: 0, done: 0 };
+              const hasNothingTracked = day.inMonth && (!isTrackedDay || planned === 0);
+              return (
+                <View key={day.iso} style={styles.dayCell}>
+                  <View style={[styles.dayMark, { borderRadius: radius.pill }]}>
+                    {day.inMonth && !isToday ? <DayRing planned={planned} done={done} /> : null}
+                    <Text
+                      style={[
+                        styles.dayText,
+                        androidTextFix,
+                        {
+                          color: !day.inMonth ? colors.muted : hasNothingTracked ? colors.muted : planned > 0 && done >= planned ? '#fff' : colors.ink,
+                          opacity: day.inMonth ? 1 : 0.35,
+                          fontFamily: isToday ? fonts.bodyBold : fonts.bodyRegular,
+                        },
+                      ]}
+                    >
+                      {day.dayOfMonth}
+                    </Text>
+                    {isToday ? <View style={[styles.todayUnderline, { backgroundColor: colors.accent }]} /> : null}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        ))}
+      </Animated.View>
 
       <View style={styles.legend}>
         <LegendDot color={colors.complete} label="Fully done" />
@@ -195,6 +201,13 @@ const styles = StyleSheet.create({
   },
   dayText: {
     fontSize: 12.5,
+  },
+  todayUnderline: {
+    position: 'absolute',
+    bottom: 2,
+    width: 16,
+    height: 2,
+    borderRadius: 999,
   },
   legend: {
     flexDirection: 'row',

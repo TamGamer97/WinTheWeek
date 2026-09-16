@@ -98,7 +98,7 @@ export default function AnalyticsScreen() {
             <View
               style={[
                 styles.card,
-                { backgroundColor: colors.paperRaised, borderColor: colors.line, borderRadius: radius.lg, paddingHorizontal: 0 },
+                { backgroundColor: colors.paperRaised, borderColor: colors.line, borderRadius: radius.lg, padding: 0 },
                 shadowCard,
               ]}
             >
