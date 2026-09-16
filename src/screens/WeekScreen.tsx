@@ -26,7 +26,7 @@ export default function WeekScreen() {
     >
       <ScreenHeader title={title} subtitle={subtitle} onOpenSettings={openSettings} />
       <WeekNav />
-      <GroupHeader label="Not scheduled yet" count={unscheduledCount} onPress={() => openDaySheet('unscheduled')} />
+      <GroupHeader label="Not scheduled yet" count={unscheduledCount} onPress={() => openDaySheet('unscheduled', weekId)} />
       <WeekBoard />
     </ScrollView>
   );

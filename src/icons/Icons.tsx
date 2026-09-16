@@ -108,6 +108,14 @@ export function RepeatIcon({ size = 12, color = '#3860E8' }: IconProps) {
   );
 }
 
+export function CloseIcon({ size = 18, color = '#12141C' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 18 18" fill="none">
+      <Path d="M4 4L14 14M14 4L4 14" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 export function PlusIcon({ size = 20, color = '#fff' }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 18 18" fill="none">

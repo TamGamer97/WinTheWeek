@@ -8,13 +8,12 @@ import FadeInUp from './FadeInUp';
 import PressScale from './PressScale';
 import { useAppState } from '../state/AppState';
 
-// Color-codes each task with a small leading dot in the routine's own
-// color, rather than coloring the task's title text itself — a handful of
-// different-colored words crammed into one small comma-joined line reads
-// poorly (low, inconsistent contrast at 12.5px). A dot keeps every title in
-// the same easy-to-read ink tone while still carrying the routine's color.
-// The color itself always comes from routineColorHex(), so this dot, the
-// day popup, and Manage Routines never disagree about what color a task is.
+// Color-codes each task by coloring its own title text in the routine's
+// color (rather than a small leading dot) — the color still always comes
+// from routineColorHex(), so this line, the day popup, and Manage Routines
+// never disagree about what color a task is. The comma between titles
+// stays a neutral, muted tone so it reads as punctuation rather than
+// picking up whichever task's color happens to be nearest.
 function TaskInline({ tasks, onToggle }: { tasks: RoutineInstance[]; onToggle: (id: string) => void }) {
   const { colors, isDark } = useTheme();
 
@@ -26,17 +25,15 @@ function TaskInline({ tasks, onToggle }: { tasks: RoutineInstance[]; onToggle: (
     >
       {tasks.map((t, i) => (
         <Text key={t.id} onPress={() => onToggle(String(t.id))}>
-          <Text style={{ color: t.done ? colors.line : routineColorHex(t.color, isDark) }}>{'•'}</Text>
           <Text
             style={{
-              color: t.done ? colors.muted : colors.inkSoft,
+              color: t.done ? colors.muted : routineColorHex(t.color, isDark),
               textDecorationLine: t.done ? 'line-through' : 'none',
             }}
           >
-            {' '}
             {t.title}
-            {i < tasks.length - 1 ? ', ' : ''}
           </Text>
+          {i < tasks.length - 1 ? <Text style={{ color: colors.muted }}>{', '}</Text> : null}
         </Text>
       ))}
     </Text>
@@ -53,7 +50,7 @@ function WeekRow({ day, weekId, index }: { day: DayInfo; weekId: string; index: 
     <FadeInUp delay={Math.min(index, 6) * 30} duration={280}>
       <PressScale
         scaleTo={0.99}
-        onPress={() => openDaySheet(day.key)}
+        onPress={() => openDaySheet(day.key, weekId)}
         style={[
           styles.row,
           {

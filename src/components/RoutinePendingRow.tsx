@@ -5,16 +5,16 @@ import { androidTextFix, fonts } from '../theme/fonts';
 import { Routine } from '../data/types';
 import { daysForWeek } from '../data/schedule';
 import { routineColorHex } from '../theme/colors';
-import { RepeatIcon } from '../icons/Icons';
+import { PlusIcon, RepeatIcon } from '../icons/Icons';
 import FadeInUp from './FadeInUp';
 import PressScale from './PressScale';
 import { useAppState } from '../state/AppState';
 
-// The two-line sub text below the title is always exactly two fixed lines —
-// the count, then the status — rather than one "X of Y days planned this
-// week · target met" string left to wrap wherever it runs out of room.
+// The unscheduled popup uses the same quiet spine-row language as scheduled
+// and available routines in the day popup. Its second metadata line answers
+// the only extra question this state has: how many days still need planning.
 export default function RoutinePendingRow({ routine, weekId }: { routine: Routine; weekId: string }) {
-  const { colors, radius, shadowCard, isDark } = useTheme();
+  const { colors, radius, isDark } = useTheme();
   const { openRoutinePlanner } = useAppState();
   const planned = daysForWeek(routine, weekId).length;
   const remaining = routine.timesPerWeek - planned;
@@ -23,30 +23,31 @@ export default function RoutinePendingRow({ routine, weekId }: { routine: Routin
 
   return (
     <FadeInUp duration={240}>
-      <View
-        style={[styles.card, { backgroundColor: colors.paperRaised, borderRadius: radius.md }, shadowCard]}
-      >
-        <View style={[styles.badge, { backgroundColor: hex + '17', borderRadius: radius.sm }]}>
-          <RepeatIcon size={16} color={hex} />
-        </View>
+      <View style={[styles.row, { backgroundColor: colors.paper, borderRadius: radius.lg }]}>
+        <View style={[styles.spine, { backgroundColor: hex, borderRadius: radius.sm }]} />
         <View style={styles.body}>
           <Text numberOfLines={1} style={[styles.title, androidTextFix, { color: colors.ink, fontFamily: fonts.bodySemiBold }]}>
             {routine.title}
           </Text>
-          <Text numberOfLines={1} style={[styles.sub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>
-            {planned} of {routine.timesPerWeek} days planned
-          </Text>
+          <View style={styles.metaRow}>
+            <RepeatIcon size={10} color={colors.muted} />
+            <Text numberOfLines={1} style={[styles.metaText, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyMedium }]}>
+              {routine.timesPerWeek}×/week · {planned} planned
+            </Text>
+          </View>
           <Text
             numberOfLines={1}
-            style={[styles.sub, androidTextFix, { color: complete ? colors.accent : colors.muted, fontFamily: fonts.bodyRegular }]}
+            style={[styles.status, androidTextFix, { color: complete ? colors.accent : colors.muted, fontFamily: fonts.bodyMedium }]}
           >
             {complete ? 'Target met' : `Choose ${remaining} more`}
           </Text>
         </View>
-        <PressScale scaleTo={0.95} onPress={() => openRoutinePlanner(routine.id)} style={styles.planBtn}>
-          <Text style={[styles.planText, androidTextFix, { color: colors.accent, fontFamily: fonts.bodyBold }]}>
-            Plan
-          </Text>
+        <PressScale
+          scaleTo={0.88}
+          onPress={() => openRoutinePlanner(routine.id)}
+          style={[styles.actionBtn, { backgroundColor: colors.accentSoft }]}
+        >
+          <PlusIcon size={13} color={colors.accent} />
         </PressScale>
       </View>
     </FadeInUp>
@@ -54,18 +55,17 @@ export default function RoutinePendingRow({ routine, weekId }: { routine: Routin
 }
 
 const styles = StyleSheet.create({
-  card: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 12,
-    marginBottom: 10,
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    marginBottom: 8,
   },
-  badge: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+  spine: {
+    width: 4,
+    height: 32,
     flexShrink: 0,
   },
   body: {
@@ -76,15 +76,25 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 21,
   },
-  sub: {
-    fontSize: 12.5,
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 3,
+  },
+  metaText: {
+    fontSize: 12,
+  },
+  status: {
+    fontSize: 12,
     marginTop: 2,
   },
-  planBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-  planText: {
-    fontSize: 13.5,
+  actionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
 });

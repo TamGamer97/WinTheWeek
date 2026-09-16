@@ -17,7 +17,7 @@ import { fonts } from '../theme/fonts';
 import { useAppState } from '../state/AppState';
 import { daysForWeek } from '../data/schedule';
 import { DayKey } from '../data/types';
-import { dayMeta, formatDayHeading, parseISODate, weekIdFor } from '../utils/date';
+import { DAY_KEYS, addDays, dayMeta, formatDayHeading, isoDate, parseISODate, weekIdFor } from '../utils/date';
 import { MultiDayPicker, RoutineDayPickerExcluding } from './sheet/DayOptions';
 import {
   GhostButton,
@@ -30,15 +30,25 @@ import {
   TaskColorPicker,
 } from './sheet/SheetControls';
 import { AddRoutineRow, ManageRoutineRow, ScheduledRoutineRow } from './sheet/DaySheetRoutineRow';
+import DraggableTaskList from './DraggableTaskList';
 import RoutinePendingRow from './RoutinePendingRow';
 import EmptyState from './EmptyState';
+import MonthCalendar from './MonthCalendar';
+import IconButton from './IconButton';
+import { CloseIcon } from '../icons/Icons';
+
+// The two form-based sheet modes ('add' and 'routineEdit') are substantial
+// enough — name, color, frequency, schedule — to deserve a full page rather
+// than the usual half-height sheet the other (simpler) modes use.
+const FULL_PAGE_MODES = new Set(['add', 'routineEdit']);
 
 const { height: SCREEN_H } = Dimensions.get('window');
 
 export default function BottomSheet() {
   const { colors, shadowPanel } = useTheme();
   const insets = useSafeAreaInsets();
-  const { sheetOpen, closeSheet } = useAppState();
+  const { sheetOpen, sheetMode, closeSheet } = useAppState();
+  const isFullPage = FULL_PAGE_MODES.has(sheetMode ?? '');
 
   const translateY = useRef(new Animated.Value(SCREEN_H)).current;
   const backdrop = useRef(new Animated.Value(0)).current;
@@ -78,20 +88,32 @@ export default function BottomSheet() {
             {
               backgroundColor: colors.paperRaised,
               paddingBottom: Math.max(insets.bottom, 20) + 6,
-              maxHeight: SCREEN_H * 0.82,
+              paddingTop: isFullPage ? insets.top + 10 : 10,
+              borderTopLeftRadius: isFullPage ? 0 : 28,
+              borderTopRightRadius: isFullPage ? 0 : 28,
+              height: isFullPage ? SCREEN_H : undefined,
+              maxHeight: isFullPage ? SCREEN_H : SCREEN_H * 0.82,
               transform: [{ translateY }],
             },
           ]}
         >
-          <View style={[styles.grabber, { backgroundColor: colors.lineStrong }]} />
-          <SheetBody />
+          {isFullPage ? (
+            <View style={styles.pageHeader}>
+              <IconButton onPress={closeSheet}>
+                <CloseIcon size={16} color={colors.ink} />
+              </IconButton>
+            </View>
+          ) : (
+            <View style={[styles.grabber, { backgroundColor: colors.lineStrong }]} />
+          )}
+          <SheetBody isFullPage={isFullPage} />
         </Animated.View>
       </KeyboardAvoidingView>
     </View>
   );
 }
 
-function SheetBody() {
+function SheetBody({ isFullPage }: { isFullPage: boolean }) {
   const { colors } = useTheme();
   const { sheetMode } = useAppState();
 
@@ -105,6 +127,7 @@ function SheetBody() {
   const day = useDayContent();
   const routinePlan = useRoutinePlanContent();
   const moveRoutineDay = useMoveRoutineDayContent();
+  const monthView = useMonthViewContent();
 
   const { title, context, body } =
     sheetMode === 'add'
@@ -119,11 +142,15 @@ function SheetBody() {
       ? routinePlan
       : sheetMode === 'moveRoutineDay'
       ? moveRoutineDay
+      : sheetMode === 'monthView'
+      ? monthView
       : { title: '', context: '', body: null as React.ReactNode };
 
   return (
     <>
-      <Text style={[styles.title, { color: colors.ink, fontFamily: fonts.headingSemiBold }]}>{title}</Text>
+      <Text style={[styles.title, isFullPage && styles.pageTitle, { color: colors.ink, fontFamily: fonts.headingSemiBold }]}>
+        {title}
+      </Text>
       {/* A sheet's context line is always exactly one clause — it truncates
           with an ellipsis rather than ever wrapping into a ragged second
           line, and the copy below is kept short enough that in practice it
@@ -131,7 +158,13 @@ function SheetBody() {
       <Text numberOfLines={1} style={[styles.context, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>
         {context}
       </Text>
-      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" overScrollMode="never">
+      <ScrollView
+        style={isFullPage ? styles.pageScroll : undefined}
+        contentContainerStyle={isFullPage ? styles.pageScrollContent : undefined}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        overScrollMode="never"
+      >
         {body}
       </ScrollView>
     </>
@@ -176,6 +209,31 @@ function useRoutineManageContent() {
   };
 }
 
+// The "Schedule" section on both the add and edit forms. A routine's
+// `defaultDays` doesn't have to be all-or-nothing: picking fewer days than
+// `timesPerWeek` is a valid, deliberate state — those picked days repeat
+// every week, and whatever's left over is chosen fresh each week (see the
+// two-layer schedule model in docs/PROJECT.md). So this is a single day
+// picker, not a fixed/flexible mode switch — forcing that choice would hide
+// the useful in-between case (e.g. 2 fixed days, a 3rd that moves around).
+function ScheduleSection({
+  selectedDays,
+  max,
+  onToggleDay,
+}: {
+  selectedDays: DayKey[];
+  max: number;
+  onToggleDay: (key: DayKey) => void;
+}) {
+  return (
+    <View style={styles.scheduleSection}>
+      <SheetLabel>Regular days</SheetLabel>
+      <MultiDayPicker selected={selectedDays} max={max} onToggle={onToggleDay} />
+      <SheetHint>Select the days this usually happens.</SheetHint>
+    </View>
+  );
+}
+
 function useAddContent() {
   const {
     sheetRoutineFreq,
@@ -192,29 +250,31 @@ function useAddContent() {
 
   return {
     title: 'New routine',
-    context: 'Something you want to do regularly',
+    context: 'Set the basics for your routine',
     body: (
       <View>
-        <SheetTextInput value={text} onChangeText={setText} placeholder="e.g. Go to the gym" autoFocus />
+        <SheetLabel noMarginTop>Name</SheetLabel>
+        <SheetTextInput value={text} onChangeText={setText} placeholder="e.g. Go to the gym" />
+
         <TaskColorPicker value={sheetTaskColor} onChange={setTaskColor} />
         <Stepper value={sheetRoutineFreq} onChange={changeFreq} />
-        <SheetLabel>Days (optional)</SheetLabel>
-        <MultiDayPicker selected={sheetMultiDays} max={sheetMultiMax} onToggle={toggleMultiDay} />
-        <SheetHint>
-          {sheetMultiDays.length
-            ? `${sheetMultiDays.length} of ${sheetRoutineFreq} days chosen`
-            : 'Leave blank to plan a different day each week'}
-        </SheetHint>
-        <PrimaryButton label="Create routine" onPress={() => confirmAdd(text, sheetTaskColor)} />
+
+        <ScheduleSection
+          selectedDays={sheetMultiDays}
+          max={sheetMultiMax}
+          onToggleDay={toggleMultiDay}
+        />
+
+        <PrimaryButton label="Create routine" onPress={() => confirmAdd(text, sheetTaskColor)} disabled={!text.trim()} />
         <GhostButton label="Cancel" onPress={closeSheet} />
       </View>
     ),
   };
 }
 
-// Edits the routine itself — color, weekly frequency, and its optional
-// default template — reached from Manage Routines. Never touches any
-// specific week's actual plan; those live only in useRoutinePlanContent.
+// Edits the routine itself — name, color, weekly frequency, and its
+// optional default template — reached from Manage Routines. Never touches
+// any specific week's actual plan; those live only in useRoutinePlanContent.
 function useRoutineEditContent() {
   const {
     routines,
@@ -230,21 +290,38 @@ function useRoutineEditContent() {
     closeSheet,
   } = useAppState();
   const r = routines.find((r) => r.id === sheetRoutineId);
+  const [text, setText] = useState(r?.title ?? '');
+
+  // Opening this mode from Manage Routines is a mode switch within an
+  // already-open sheet, not a fresh mount (see the "every content hook
+  // runs on every render" note in docs/PROJECT.md) — so this hook's local
+  // `text` state can already exist from an earlier render with a stale (or
+  // no) routine. Re-sync it explicitly whenever which routine is being
+  // edited changes, rather than relying on useState's initializer alone.
+  useEffect(() => {
+    setText(r?.title ?? '');
+    // Only when the *routine being edited* changes — not on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheetRoutineId]);
+
   return {
-    title: r?.title ?? '',
-    context: "This routine's usual color and days",
+    title: 'Edit routine',
+    context: "Update its name, color, and weekly schedule",
     body: (
       <View>
+        <SheetLabel noMarginTop>Name</SheetLabel>
+        <SheetTextInput value={text} onChangeText={setText} placeholder="e.g. Go to the gym" />
+
         <TaskColorPicker value={sheetTaskColor} onChange={setTaskColor} />
         <Stepper value={sheetRoutineFreq} onChange={changeFreq} />
-        <SheetLabel>Default days (optional)</SheetLabel>
-        <MultiDayPicker selected={sheetMultiDays} max={sheetMultiMax} onToggle={toggleMultiDay} />
-        <SheetHint>
-          {sheetMultiDays.length
-            ? `${sheetMultiDays.length} of ${sheetRoutineFreq} days chosen`
-            : "Leave blank to plan a different day each week"}
-        </SheetHint>
-        <PrimaryButton label="Save changes" onPress={confirmRoutineEdit} />
+
+        <ScheduleSection
+          selectedDays={sheetMultiDays}
+          max={sheetMultiMax}
+          onToggleDay={toggleMultiDay}
+        />
+
+        <PrimaryButton label="Save changes" onPress={() => confirmRoutineEdit(text)} disabled={!text.trim()} />
         <GhostButton label="Cancel" onPress={closeSheet} />
       </View>
     ),
@@ -254,42 +331,50 @@ function useRoutineEditContent() {
 // This popup is about planning a day, not marking work done — so unlike the
 // Today screen, there's no checkbox here at all. Instead: routines already
 // on this day get a "remove" row, and routines that aren't get an "add"
-// row, both driven by the same toggleRoutineForDay used by Manage Routines.
-// It always operates on the week currently being browsed on the Week screen.
+// row, both driven by the same toggleRoutineForWeekDay used by Manage
+// Routines. `sheetDayWeekId` (set by openDaySheet) says which week this
+// plans — the week being browsed on the Week screen, or the real current
+// week when opened from the Today screen's quick add — never assumed from
+// context, so this never accidentally edits the wrong one.
 function useDayContent() {
   const { colors } = useTheme();
-  const { sheetDayKey, tasksFor, pendingRoutines, routines, toggleRoutineForDay, openAdd, closeSheet, weekId, weekDays } =
+  const { sheetDayKey, sheetDayWeekId, tasksFor, pendingRoutines, routines, toggleRoutineForWeekDay, openAdd, closeSheet } =
     useAppState();
   const isUnsched = sheetDayKey === 'unscheduled';
+  const wId = sheetDayWeekId ?? '';
   const dayKey = isUnsched ? null : (sheetDayKey as DayKey);
   const d = isUnsched ? null : dayMeta(sheetDayKey as DayKey);
-  const dayInfo = isUnsched ? null : weekDays.find((w) => w.key === sheetDayKey);
+  const dayIso = dayKey ? isoDate(addDays(parseISODate(wId), DAY_KEYS.indexOf(dayKey))) : '';
 
   let listItems: React.ReactNode;
   if (isUnsched) {
-    const pending = pendingRoutines(weekId);
+    const pending = pendingRoutines(wId);
     listItems = pending.length ? (
-      pending.map((r) => <RoutinePendingRow key={r.id} routine={r} weekId={weekId} />)
+      pending.map((r) => <RoutinePendingRow key={r.id} routine={r} weekId={wId} />)
     ) : (
       <Text style={[styles.empty, { color: colors.muted }]}>All caught up</Text>
     );
   } else {
     const key = dayKey as DayKey;
-    const scheduled = tasksFor(weekId, key);
-    const available = routines.filter((r) => !daysForWeek(r, weekId).includes(key));
+    const scheduled = tasksFor(wId, key);
+    const available = routines.filter((r) => !daysForWeek(r, wId).includes(key));
 
     listItems = (
       <>
         {scheduled.length ? (
-          scheduled.map((t) => (
-            <ScheduledRoutineRow
-              key={t.id}
-              title={t.title}
-              color={t.color}
-              timesPerWeek={t.timesPerWeek}
-              onRemove={() => toggleRoutineForDay(Number(String(t.id).split('::')[0]), key)}
-            />
-          ))
+          <DraggableTaskList
+            tasks={scheduled}
+            rowGap={8}
+            renderTask={(t) => (
+              <ScheduledRoutineRow
+                title={t.title}
+                color={t.color}
+                timesPerWeek={t.timesPerWeek}
+                onRemove={() => toggleRoutineForWeekDay(Number(String(t.id).split('::')[0]), wId, key)}
+                compact
+              />
+            )}
+          />
         ) : (
           <Text style={[styles.empty, { color: colors.muted }]}>Nothing here yet</Text>
         )}
@@ -305,7 +390,7 @@ function useDayContent() {
                 title={r.title}
                 color={r.color}
                 timesPerWeek={r.timesPerWeek}
-                onAdd={() => toggleRoutineForDay(r.id, key)}
+                onAdd={() => toggleRoutineForWeekDay(r.id, wId, key)}
               />
             ))}
           </>
@@ -316,9 +401,7 @@ function useDayContent() {
 
   return {
     title: isUnsched ? 'Not scheduled yet' : d?.label ?? '',
-    context: isUnsched
-      ? 'Routines with no day chosen yet'
-      : `${dayInfo ? formatDayHeading(dayInfo.iso) : ''} · Plan this day`,
+    context: isUnsched ? 'Routines with no day chosen yet' : `${dayIso ? formatDayHeading(dayIso) : ''} · Plan this day`,
     body: (
       <View>
         <View style={styles.taskList}>{listItems}</View>
@@ -402,6 +485,24 @@ function useMoveRoutineDayContent() {
   };
 }
 
+// The week selector's calendar button opens this — a full month grid to
+// browse and jump the week browser from, independent of the small handful
+// of weeks reachable by chevron-tapping.
+function useMonthViewContent() {
+  const { closeSheet, monthViewGoToToday } = useAppState();
+  return {
+    title: 'Jump to a week',
+    context: 'Tap any date to browse its week',
+    body: (
+      <View>
+        <MonthCalendar />
+        <SheetLinkButton label="Jump to today" onPress={monthViewGoToToday} />
+        <GhostButton label="Close" onPress={closeSheet} />
+      </View>
+    ),
+  };
+}
+
 const styles = StyleSheet.create({
   kav: {
     flex: 1,
@@ -420,17 +521,35 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 16,
   },
+  pageHeader: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    marginBottom: 8,
+  },
   title: {
     fontSize: 18,
     marginBottom: 4,
+  },
+  pageTitle: {
+    fontSize: 24,
+    marginTop: 4,
   },
   context: {
     fontSize: 13.5,
     marginBottom: 16,
   },
+  pageScroll: {
+    flex: 1,
+  },
+  pageScrollContent: {
+    paddingBottom: 24,
+  },
   taskList: {
     marginTop: 2,
     marginBottom: 2,
+  },
+  scheduleSection: {
+    marginTop: 8,
   },
   empty: {
     textAlign: 'center',

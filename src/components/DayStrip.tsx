@@ -11,7 +11,9 @@ function DayPip({ day }: { day: DayInfo }) {
   const { currentDay, selectDay, tasksFor, todayWeekId, todayDayKey } = useAppState();
   const selected = day.key === currentDay;
   const isToday = day.key === todayDayKey;
-  const hasTasks = tasksFor(todayWeekId, day.key).length > 0;
+  const tasks = tasksFor(todayWeekId, day.key);
+  const hasTasks = tasks.length > 0;
+  const allTasksComplete = hasTasks && tasks.every((task) => task.done);
 
   return (
     <PressScale scaleTo={0.92} onPress={() => selectDay(day.key)} style={styles.pip}>
@@ -37,7 +39,18 @@ function DayPip({ day }: { day: DayInfo }) {
           {day.date}
         </Text>
       </View>
-      <View style={[styles.mark, { backgroundColor: colors.accent, opacity: hasTasks ? 1 : 0 }]} />
+      {/* A neutral dot means "planned"; green is reserved for a completed
+          day. This avoids making ordinary scheduled work look like an alert
+          or a tappable call-to-action. */}
+      <View
+        style={[
+          styles.mark,
+          {
+            backgroundColor: allTasksComplete ? colors.complete : colors.muted,
+            opacity: hasTasks ? (allTasksComplete ? 1 : 0.7) : 0,
+          },
+        ]}
+      />
     </PressScale>
   );
 }

@@ -20,12 +20,15 @@ export type DayInfo = {
 // `doneDates` tracks completion per real calendar day (ISO date), not per
 // weekday — so marking this Wednesday's gym done never affects any other
 // Wednesday, past or future.
-// `order` is the routine's position in its own manually-arranged list — the
-// same order it appears in wherever its instances are shown together (e.g.
-// a day's task list on Today). It starts out as creation order but can be
-// rearranged by dragging a task on Today; reordering touches only the
-// routines visibly involved and leaves everyone else's relative order
-// untouched (see reorderRoutines in AppState).
+// `order` is the routine's default position, used as a fallback wherever it
+// hasn't been manually reordered — new routines start at the end of it. It
+// is NOT itself where drag-reordering lives: dragging on a specific day's
+// list (Today, or the day-planning sheet) writes into `dayOrder` instead.
+// `dayOrder` keys a routine's rank by real calendar day (ISO date), exactly
+// like `doneDates` — so reordering, say, this Wednesday's list can never
+// reshuffle Monday's, even when the two days share a routine. A date with
+// no entry falls back to `order` (see the effective-order resolver in
+// AppState's `tasksFor`/`makeRoutineInstance`).
 export type Routine = {
   id: number;
   title: string;
@@ -35,6 +38,7 @@ export type Routine = {
   schedule: Record<string, DayKey[]>;
   doneDates: Record<string, boolean>;
   order: number;
+  dayOrder: Record<string, number>;
 };
 
 // A routine instance rendered on a specific real day — a task-shaped object
@@ -66,4 +70,5 @@ export type SheetMode =
   | 'day'
   | 'routinePlan'
   | 'moveRoutineDay'
+  | 'monthView'
   | null;

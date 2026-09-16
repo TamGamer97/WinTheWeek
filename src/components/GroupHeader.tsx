@@ -6,15 +6,14 @@ import { ChevronRightIcon } from '../icons/Icons';
 import PressScale from './PressScale';
 
 export default function GroupHeader({ label, count, onPress }: { label: string; count: number; onPress: () => void }) {
-  const { colors, radius, shadowCard, isDark } = useTheme();
-  // In light mode the label sits on a light-blue chip and needs a darkened
-  // tint (CSS `filter: brightness(0.72)`) to stay legible; dark mode uses
-  // the highlight color as-is.
+  const { colors, isDark } = useTheme();
+  // Light mode uses a darkened highlight tint for legibility against the
+  // page surface; dark mode can use the highlight color as-is.
   const tintColor = isDark ? colors.highlight : darken(colors.highlight, 0.72);
   const countBg = isDark ? 'rgba(0,0,0,0.22)' : 'rgba(0,0,0,0.07)';
 
   return (
-    <PressScale scaleTo={0.98} onPress={onPress} style={[styles.wrap, { backgroundColor: colors.highlightSoft }, shadowCard]}>
+    <PressScale scaleTo={0.98} onPress={onPress} style={[styles.wrap, { backgroundColor: colors.highlightSoft }]}>
       <Text numberOfLines={1} style={[styles.label, androidTextFix, { color: tintColor, fontFamily: fonts.bodyBold }]}>
         {label}
       </Text>
@@ -46,6 +45,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingVertical: 11,
     paddingHorizontal: 14,
+    // Keep the soft blue grouping tint, but no elevation/shadow: this is a
+    // lightweight navigation row rather than a floating card.
     borderRadius: 14,
   },
   label: {

@@ -15,6 +15,7 @@ import { DEFAULT_ROUTINE_COLOR } from '../theme/colors';
 import {
   DAY_KEYS,
   addDays,
+  addMonths,
   dayKeyOf,
   formatWeekRange,
   getWeekDayInfos,
@@ -84,6 +85,18 @@ function restoreRoutinesV2(value: unknown): Routine[] | null {
     // relative order exactly as it was).
     const order = typeof record.order === 'number' ? record.order : index;
 
+    // `dayOrder` is newer still — data saved before per-day reordering
+    // existed won't have it, so it just starts empty (every day falls back
+    // to `order` until manually reordered).
+    let dayOrder: Record<string, number> = {};
+    if (record.dayOrder && typeof record.dayOrder === 'object') {
+      dayOrder = Object.fromEntries(
+        Object.entries(record.dayOrder as Record<string, unknown>).filter(
+          (entry): entry is [string, number] => typeof entry[1] === 'number',
+        ),
+      );
+    }
+
     restored.push({
       id: record.id,
       title: record.title,
@@ -93,6 +106,7 @@ function restoreRoutinesV2(value: unknown): Routine[] | null {
       schedule,
       doneDates,
       order,
+      dayOrder,
     });
   }
 
@@ -134,10 +148,19 @@ function migrateLegacyRoutines(value: unknown, thisWeekStart: Date): Routine[] |
       schedule: {},
       doneDates,
       order: index,
+      dayOrder: {},
     });
   }
 
   return restored;
+}
+
+// A day's list sorts by this — the routine's rank for that specific date if
+// it's ever been reordered there, else its default `order`. Keeping the
+// per-date override separate from the default is what stops reordering one
+// day from reordering every other day that happens to share a routine.
+function effectiveOrder(r: Routine, iso: string): number {
+  return r.dayOrder[iso] ?? r.order;
 }
 
 function makeRoutineInstance(r: Routine, iso: string): RoutineInstance {
@@ -148,7 +171,7 @@ function makeRoutineInstance(r: Routine, iso: string): RoutineInstance {
     done: !!r.doneDates[iso],
     isRoutine: true,
     timesPerWeek: r.timesPerWeek,
-    order: r.order,
+    order: effectiveOrder(r, iso),
   };
 }
 
@@ -185,13 +208,25 @@ type AppStateValue = {
   goToNextWeek: () => void;
   goToThisWeek: () => void;
 
+  // month-view popup (opened from the week selector's calendar button) —
+  // lets the person browse a full month grid and jump the week browser to
+  // any date, independent of which week is currently shown behind it.
+  monthViewAnchor: Date;
+  monthViewGoToPrevMonth: () => void;
+  monthViewGoToNextMonth: () => void;
+  openMonthView: () => void;
+  goToWeekOf: (iso: string) => void;
+  monthViewGoToToday: () => void;
+
   // fab
   fabSquishTick: number;
   fabPressed: () => void;
   openRoutineManager: () => void;
-  toggleRoutineForDay: (routineId: number, day: DayKey) => void;
+  toggleRoutineForWeekDay: (routineId: number, weekId: string, day: DayKey) => void;
   deleteRoutine: (id: number) => void;
-  reorderRoutines: (orderedVisibleIds: number[]) => void;
+  // Reorders one specific real day's task list only — see `dayOrder` on
+  // `Routine` in data/types.ts.
+  reorderRoutinesForDay: (iso: string, orderedVisibleIds: number[]) => void;
 
   // task actions
   toggleDone: (id: string) => void;
@@ -217,6 +252,11 @@ type AppStateValue = {
   sheetOpen: boolean;
   sheetMode: SheetMode;
   sheetDayKey: DayKeyOrUnscheduled | null;
+  // The week the 'day' sheet is planning — explicit rather than read from
+  // `weekId`, since it can be opened for the real current week (Today
+  // screen's quick-add) while a different week is being browsed on the Week
+  // screen; the two must never be conflated (see docs/PROJECT.md).
+  sheetDayWeekId: string | null;
   sheetPickedDay: DayKey | null;
   sheetTaskColor: string;
   sheetRoutineFreq: number;
@@ -229,7 +269,8 @@ type AppStateValue = {
   openAdd: (defaultDay: DayKeyOrUnscheduled) => void;
   changeFreq: (delta: number) => void;
   toggleMultiDay: (key: DayKey) => void;
-  openDaySheet: (dayKey: DayKeyOrUnscheduled) => void;
+  clearMultiDays: () => void;
+  openDaySheet: (dayKey: DayKeyOrUnscheduled, weekId: string) => void;
   openRoutinePlanner: (id: number) => void;
   openRoutineEdit: (id: number) => void;
   applyUsualDaysToPlan: () => void;
@@ -238,7 +279,7 @@ type AppStateValue = {
 
   confirmAdd: (title: string, color: string) => void;
   confirmRoutinePlan: () => void;
-  confirmRoutineEdit: () => void;
+  confirmRoutineEdit: (title: string) => void;
   confirmMoveRoutineDay: () => void;
   closeSheet: () => void;
 };
@@ -327,6 +368,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetMode, setSheetMode] = useState<SheetMode>(null);
   const [sheetDayKey, setSheetDayKey] = useState<DayKeyOrUnscheduled | null>(null);
+  const [sheetDayWeekId, setSheetDayWeekId] = useState<string | null>(null);
   const [sheetPickedDay, setSheetPickedDay] = useState<DayKey | null>(null);
   const [sheetTaskColor, setSheetTaskColor] = useState<string>(DEFAULT_ROUTINE_COLOR);
   const [sheetRoutineFreq, setSheetRoutineFreq] = useState(3);
@@ -384,6 +426,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const goToNextWeek = useCallback(() => setCurrentWeekStart((d) => addDays(d, 7)), []);
   const goToThisWeek = useCallback(() => setCurrentWeekStart(todayWeekStartRef.current), []);
 
+  // The month a month-view popup is currently showing — independent of
+  // `currentWeekStart` so browsing months doesn't move the week behind it
+  // until a date is actually picked.
+  const [monthViewAnchor, setMonthViewAnchor] = useState<Date>(() => todayWeekStartRef.current);
+  const monthViewGoToPrevMonth = useCallback(() => setMonthViewAnchor((d) => addMonths(d, -1)), []);
+  const monthViewGoToNextMonth = useCallback(() => setMonthViewAnchor((d) => addMonths(d, 1)), []);
+  const openMonthView = useCallback(() => {
+    setMonthViewAnchor(currentWeekStart);
+    setSheetMode('monthView');
+    setSheetOpen(true);
+  }, [currentWeekStart]);
+
   const openSettings = useCallback(() => {
     setPreviousScreen(activeScreen);
     setActiveScreen('settings');
@@ -417,9 +471,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     setSheetOpen(true);
   }, []);
 
-  // Toggles `routineId` on/off `day` for the week currently being browsed —
-  // always writes an explicit override for that one week, and never touches
-  // the routine's default template.
+  // Toggles `routineId` on/off `day` for an explicit week (the caller
+  // decides which — the browsed week or the real current one — since this
+  // is shared by the Week screen's day popup and the Today screen's quick
+  // add) — always writes an explicit override for that one week, and never
+  // touches the routine's default template.
   const toggleRoutineForWeekDay = useCallback((routineId: number, wId: string, day: DayKey) => {
     setRoutines((prev) =>
       prev.map((r) => {
@@ -432,37 +488,25 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     );
   }, []);
 
-  const toggleRoutineForDay = useCallback(
-    (routineId: number, day: DayKey) => toggleRoutineForWeekDay(routineId, weekId, day),
-    [toggleRoutineForWeekDay, weekId],
-  );
-
   const deleteRoutine = useCallback((id: number) => {
     setRoutines((prev) => prev.filter((routine) => routine.id !== id));
   }, []);
 
-  // Applies a new relative order for just the routines visible in one drag
-  // (e.g. the handful shown in a day's list on Today) — `orderedVisibleIds`
-  // is that subset's routine ids, in their new order. Every other routine
-  // keeps the exact slot it already held, so reordering one day's list never
-  // reshuffles routines that don't appear in it.
-  const reorderRoutines = useCallback((orderedVisibleIds: number[]) => {
-    setRoutines((prev) => {
-      const sorted = [...prev].sort((a, b) => a.order - b.order);
-      const visible = new Set(orderedVisibleIds);
-      const slots: number[] = [];
-      sorted.forEach((r, i) => {
-        if (visible.has(r.id)) slots.push(i);
-      });
-      if (slots.length !== orderedVisibleIds.length) return prev;
-      const byId = new Map(sorted.map((r) => [r.id, r]));
-      const result = [...sorted];
-      orderedVisibleIds.forEach((id, i) => {
-        const routine = byId.get(id);
-        if (routine) result[slots[i]] = routine;
-      });
-      return result.map((r, i) => (r.order === i ? r : { ...r, order: i }));
-    });
+  // Reorders one real day's task list — `iso` is that specific date,
+  // `orderedVisibleIds` its routines' ids in their new order. Writes each
+  // routine's rank into `dayOrder[iso]` only, exactly like a per-week
+  // schedule override: it fully replaces that one date's order and never
+  // touches the routine's default `order`, or any other date's `dayOrder`.
+  // That's what keeps a routine shared by two days from having reordering
+  // one day reorder the other.
+  const reorderRoutinesForDay = useCallback((iso: string, orderedVisibleIds: number[]) => {
+    setRoutines((prev) =>
+      prev.map((r) => {
+        const idx = orderedVisibleIds.indexOf(r.id);
+        if (idx === -1 || r.dayOrder[iso] === idx) return r;
+        return { ...r, dayOrder: { ...r.dayOrder, [iso]: idx } };
+      }),
+    );
   }, []);
 
   const toggleDone = useCallback((id: string) => {
@@ -547,9 +591,17 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const openDaySheet = useCallback((dayKey: DayKeyOrUnscheduled) => {
+  // Switching a routine's schedule from "fixed days" to "choose each week"
+  // must actually empty the picked days, not just hide the picker — an
+  // empty `defaultDays` is what makes a week start unscheduled for it.
+  const clearMultiDays = useCallback(() => {
+    setSheetMultiDays([]);
+  }, []);
+
+  const openDaySheet = useCallback((dayKey: DayKeyOrUnscheduled, wId: string) => {
     setSheetMode('day');
     setSheetDayKey(dayKey);
+    setSheetDayWeekId(wId);
     setSheetOpen(true);
   }, []);
 
@@ -610,6 +662,21 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     setSheetOpen(false);
   }, []);
 
+  // Tapping any date in the month-view grid jumps the week browser straight
+  // to that date's week and dismisses the popup.
+  const goToWeekOf = useCallback(
+    (iso: string) => {
+      setCurrentWeekStart(startOfWeek(parseISODate(iso)));
+      closeSheet();
+    },
+    [closeSheet],
+  );
+
+  const monthViewGoToToday = useCallback(() => {
+    setCurrentWeekStart(todayWeekStartRef.current);
+    closeSheet();
+  }, [closeSheet]);
+
   const confirmAdd = useCallback(
     (title: string, color: string) => {
       const trimmed = title.trim();
@@ -627,6 +694,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           schedule: {},
           doneDates: {},
           order,
+          dayOrder: {},
         },
       ]);
       closeSheet();
@@ -646,20 +714,30 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     closeSheet();
   }, [sheetRoutineId, sheetMultiDays, weekId, closeSheet]);
 
-  const confirmRoutineEdit = useCallback(() => {
-    if (sheetRoutineId == null) {
+  const confirmRoutineEdit = useCallback(
+    (title: string) => {
+      if (sheetRoutineId == null) {
+        closeSheet();
+        return;
+      }
+      const trimmed = title.trim();
+      setRoutines((prev) =>
+        prev.map((r) =>
+          r.id === sheetRoutineId
+            ? {
+                ...r,
+                ...(trimmed ? { title: trimmed } : null),
+                color: sheetTaskColor,
+                timesPerWeek: sheetRoutineFreq,
+                defaultDays: [...sheetMultiDays],
+              }
+            : r,
+        ),
+      );
       closeSheet();
-      return;
-    }
-    setRoutines((prev) =>
-      prev.map((r) =>
-        r.id === sheetRoutineId
-          ? { ...r, color: sheetTaskColor, timesPerWeek: sheetRoutineFreq, defaultDays: [...sheetMultiDays] }
-          : r,
-      ),
-    );
-    closeSheet();
-  }, [sheetRoutineId, sheetTaskColor, sheetRoutineFreq, sheetMultiDays, closeSheet]);
+    },
+    [sheetRoutineId, sheetTaskColor, sheetRoutineFreq, sheetMultiDays, closeSheet],
+  );
 
   const confirmMoveRoutineDay = useCallback(() => {
     if (!sheetPickedDay || !sheetRoutineFromIso || sheetRoutineId == null) {
@@ -711,12 +789,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       goToPrevWeek,
       goToNextWeek,
       goToThisWeek,
+      monthViewAnchor,
+      monthViewGoToPrevMonth,
+      monthViewGoToNextMonth,
+      openMonthView,
+      goToWeekOf,
+      monthViewGoToToday,
       fabSquishTick,
       fabPressed,
       openRoutineManager,
-      toggleRoutineForDay,
+      toggleRoutineForWeekDay,
       deleteRoutine,
-      reorderRoutines,
+      reorderRoutinesForDay,
       toggleDone,
       menuItemId,
       menuAnchor,
@@ -732,6 +816,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       sheetOpen,
       sheetMode,
       sheetDayKey,
+      sheetDayWeekId,
       sheetPickedDay,
       sheetTaskColor,
       sheetRoutineFreq,
@@ -743,6 +828,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       openAdd,
       changeFreq,
       toggleMultiDay,
+      clearMultiDays,
       openDaySheet,
       openRoutinePlanner,
       openRoutineEdit,
@@ -779,12 +865,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       goToPrevWeek,
       goToNextWeek,
       goToThisWeek,
+      monthViewAnchor,
+      monthViewGoToPrevMonth,
+      monthViewGoToNextMonth,
+      openMonthView,
+      goToWeekOf,
+      monthViewGoToToday,
       fabSquishTick,
       fabPressed,
       openRoutineManager,
-      toggleRoutineForDay,
+      toggleRoutineForWeekDay,
       deleteRoutine,
-      reorderRoutines,
+      reorderRoutinesForDay,
       toggleDone,
       menuItemId,
       menuAnchor,
@@ -800,6 +892,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       sheetOpen,
       sheetMode,
       sheetDayKey,
+      sheetDayWeekId,
       sheetPickedDay,
       sheetTaskColor,
       sheetRoutineFreq,
@@ -811,6 +904,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       openAdd,
       changeFreq,
       toggleMultiDay,
+      clearMultiDays,
       openDaySheet,
       openRoutinePlanner,
       openRoutineEdit,

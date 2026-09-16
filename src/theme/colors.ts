@@ -15,6 +15,7 @@ export type Palette = {
   highlightSoft: string;
   danger: string;
   dangerSoft: string;
+  complete: string;
   scrim: string;
   captionMuted: string;
   gradientTop: string;
@@ -23,27 +24,31 @@ export type Palette = {
 };
 
 export const light: Palette = {
-  // A touch warmer and less saturated than the original blue-grey — keeps
-  // the same cool, subtle tint (a flat neutral would feel lifeless next to
-  // the accent blue) without reading as sterile/clinical.
-  paper: '#F5F5FA',
+  // Every neutral (paper/ink/line/muted/shadows) previously carried the same
+  // blue-grey tint as the accent color, so the whole screen read as one flat
+  // wash of cold blue — the "clinical" look. Neutrals are now a true warm
+  // grey (no hue lean toward the accent), so they recede as a calm backdrop
+  // and the accent blue reads as a deliberate, singular pop of color instead
+  // of blending into the chrome around it.
+  paper: '#F5F5F4',
   paperRaised: '#FFFFFF',
-  ink: '#12141C',
-  inkSoft: '#4E5361',
-  muted: '#8B90A0',
-  line: '#E4E8F1',
-  lineStrong: '#CDD3E3',
+  ink: '#1C1917',
+  inkSoft: '#57534E',
+  muted: '#A8A29E',
+  line: '#E7E5E4',
+  lineStrong: '#D6D3D1',
   accent: '#3860E8',
   accentSoft: '#E9EEFD',
   highlight: '#5B8DEF',
   highlightSoft: '#EAF0FD',
   danger: '#D9483F',
   dangerSoft: '#FBEAE9',
-  scrim: 'rgba(15, 18, 30, 0.45)',
-  captionMuted: '#9A988F',
-  gradientTop: '#FBFBFE',
-  gradientBottom: '#F5F5FA',
-  glowTint: 'rgba(56, 96, 232, 0.09)',
+  complete: '#1B9C85',
+  scrim: 'rgba(20, 18, 15, 0.45)',
+  captionMuted: '#78716C',
+  gradientTop: '#FDFCFB',
+  gradientBottom: '#F5F5F4',
+  glowTint: 'rgba(56, 96, 232, 0.08)',
 };
 
 export const dark: Palette = {
@@ -60,6 +65,7 @@ export const dark: Palette = {
   highlightSoft: 'rgba(127, 168, 242, 0.14)',
   danger: '#FF6B61',
   dangerSoft: 'rgba(255, 107, 97, 0.14)',
+  complete: '#3FC7AE',
   scrim: 'rgba(0, 0, 0, 0.65)',
   captionMuted: '#5B5D63',
   gradientTop: '#131419',
@@ -113,23 +119,23 @@ export const radius = {
 // react-native's shadow* props are iOS-only; elevation is used on Android.
 // These approximate the CSS box-shadows from the design.
 //
-// Light mode's shadow tint used to be a fairly saturated navy (#38519E /
-// #233778) — under every card at once that read as a cold, clinical blue
-// cast rather than a soft depth cue. These are the same hue family, just
-// desaturated toward a muted ink/slate so the lift still feels cool rather
-// than a flat, lifeless black, without tinting everything blue.
+// Light mode's shadow tint used to be blue-grey (#4C5570 / #383F58),
+// matching the old blue-tinted neutrals — under every card at once that
+// read as a cold, clinical blue cast rather than a soft depth cue. These
+// are now a warm neutral (matching the ink/line palette above) so the lift
+// still reads as depth without tinting everything blue.
 export const shadowCard = (isDark: boolean) => ({
-  shadowColor: isDark ? '#000000' : '#4C5570',
+  shadowColor: isDark ? '#000000' : '#57534E',
   shadowOffset: { width: 0, height: 6 },
-  shadowOpacity: isDark ? 0.45 : 0.14,
+  shadowOpacity: isDark ? 0.45 : 0.13,
   shadowRadius: 12,
   elevation: 3,
 });
 
 export const shadowPanel = (isDark: boolean) => ({
-  shadowColor: isDark ? '#000000' : '#383F58',
+  shadowColor: isDark ? '#000000' : '#44403C',
   shadowOffset: { width: 0, height: 14 },
-  shadowOpacity: isDark ? 0.55 : 0.2,
+  shadowOpacity: isDark ? 0.55 : 0.18,
   shadowRadius: 28,
   elevation: 12,
 });
@@ -140,9 +146,9 @@ export const shadowPanel = (isDark: boolean) => ({
 // separates the row from the page, for a softer "resting on the surface"
 // feel than a bordered card.
 export const shadowSoft = (isDark: boolean) => ({
-  shadowColor: isDark ? '#000000' : '#4C5570',
+  shadowColor: isDark ? '#000000' : '#57534E',
   shadowOffset: { width: 0, height: 3 },
-  shadowOpacity: isDark ? 0.32 : 0.07,
+  shadowOpacity: isDark ? 0.32 : 0.06,
   shadowRadius: 10,
   elevation: 2,
 });

@@ -8,32 +8,54 @@ import ProgressRow from '../components/ProgressRow';
 import EmptyState from '../components/EmptyState';
 import DraggableTaskList from '../components/DraggableTaskList';
 import SlideDayTransition from '../components/SlideDayTransition';
-import { CheckIcon } from '../icons/Icons';
+import PressScale from '../components/PressScale';
+import { PrimaryButton } from '../components/sheet/SheetControls';
+import { CheckIcon, PlusIcon } from '../icons/Icons';
 import { useAppState } from '../state/AppState';
 import { formatDayHeading } from '../utils/date';
 
 export default function TodayScreen() {
-  const { colors } = useTheme();
-  const { currentDay, todayDirection, tasksFor, openSettings, todayWeekDays, todayWeekId, todayDayKey } = useAppState();
+  const { colors, radius } = useTheme();
+  const { currentDay, todayDirection, tasksFor, openSettings, todayWeekDays, todayWeekId, todayDayKey, openDaySheet } =
+    useAppState();
   const day = todayWeekDays.find((d) => d.key === currentDay)!;
   const dayTasks = tasksFor(todayWeekId, currentDay);
   const doneCount = dayTasks.filter((t) => t.done).length;
   const allDone = dayTasks.length > 0 && doneCount === dayTasks.length;
 
+  // Reuses the same "plan this day" sheet the Week screen's day popup opens
+  // (add/remove existing routines) — always pinned to the real current week
+  // (`todayWeekId`), never whatever week is being browsed on the Week
+  // screen, and to whichever day is selected in the strip above.
+  const addRoutineToDay = () => openDaySheet(currentDay, todayWeekId);
+
   const renderSection = (label: string, tasks: typeof dayTasks) => {
     if (!tasks.length) return null;
     return (
       <View style={styles.section}>
-        <Text
-          style={[
-            styles.sectionLabel,
-            androidTextFix,
-            { color: colors.accent, fontFamily: fonts.bodyBold },
-          ]}
-        >
-          {label}
-        </Text>
-        <DraggableTaskList tasks={tasks} />
+        <View style={styles.sectionHeader}>
+          <Text
+            style={[
+              styles.sectionLabel,
+              androidTextFix,
+              { color: colors.accent, fontFamily: fonts.bodyBold },
+            ]}
+          >
+            {label}
+          </Text>
+          <PressScale
+            scaleTo={0.88}
+            onPress={addRoutineToDay}
+            hitSlop={8}
+            style={[styles.addBtn, { backgroundColor: colors.accentSoft, borderRadius: radius.pill }]}
+          >
+            <PlusIcon size={12} color={colors.accent} />
+          </PressScale>
+        </View>
+        {/* Row positions are local to a date. Remount on day changes so
+            routines shared by two days cannot animate from their previous
+            day's slot while the day-level slide transition is running. */}
+        <DraggableTaskList key={currentDay} tasks={tasks} />
       </View>
     );
   };
@@ -60,7 +82,10 @@ export default function TodayScreen() {
       <SlideDayTransition dayKey={currentDay} direction={todayDirection}>
         <View style={{ paddingHorizontal: 24, paddingTop: 16 }}>
           {dayTasks.length === 0 ? (
-            <EmptyState icon="plus" title="Nothing planned" subtitle="Add something, or leave it open" />
+            <>
+              <EmptyState icon="plus" title="Nothing planned" subtitle="Add something, or leave it open" />
+              <PrimaryButton label="Add a routine" onPress={addRoutineToDay} />
+            </>
           ) : (
             <>
               {renderSection('Routines', dayTasks)}
@@ -101,11 +126,22 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 22,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
   sectionLabel: {
     fontSize: 12.5,
     textTransform: 'uppercase',
     letterSpacing: 0.7,
-    marginBottom: 8,
+  },
+  addBtn: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   completedState: {
     alignItems: 'center',

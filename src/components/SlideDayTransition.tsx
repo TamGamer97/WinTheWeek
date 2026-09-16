@@ -1,8 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing } from 'react-native';
 
-// Mirrors `@keyframes slideInRight` / `slideInLeft`, replayed whenever the
-// selected day changes on the Today screen.
+// Replay a short lateral movement whenever the selected day changes. The
+// content deliberately remains opaque: fading mounted cards with Android
+// elevation can produce a one-frame dark shadow flash.
 export default function SlideDayTransition({
   children,
   dayKey,
@@ -36,7 +37,6 @@ export default function SlideDayTransition({
   return (
     <Animated.View
       style={{
-        opacity: progress,
         transform: [{ translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [fromX, 0] }) }],
       }}
     >

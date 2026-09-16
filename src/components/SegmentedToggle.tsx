@@ -66,10 +66,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 9,
+    paddingVertical: 10,
+    minHeight: 40,
     borderRadius: 9,
   },
   text: {
     fontSize: 13,
+    lineHeight: 16,
   },
 });

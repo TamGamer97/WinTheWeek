@@ -35,16 +35,18 @@ export function ScheduledRoutineRow({
   color,
   timesPerWeek,
   onRemove,
+  compact,
 }: {
   title: string;
   color: string;
   timesPerWeek: number;
   onRemove: () => void;
+  compact?: boolean;
 }) {
   const { colors, radius, isDark } = useTheme();
   const hex = routineColorHex(color, isDark);
   return (
-    <View style={[styles.row, { backgroundColor: colors.paper, borderRadius: radius.lg }]}>
+    <View style={[styles.row, compact && styles.compactRow, { backgroundColor: colors.paper, borderRadius: radius.lg }]}>
       <View style={[styles.spine, { backgroundColor: hex, borderRadius: radius.sm }]} />
       <View style={styles.body}>
         <Text
@@ -116,9 +118,9 @@ function sortedShortDays(days: DayKey[]): string {
 // never a specific week's schedule. Swaps the old bordered "Edit"/"Delete"
 // text buttons for small icon buttons, matching the task menu's pattern.
 //
-// The meta area is always exactly two lines — frequency, then the default
-// summary — rather than one string that might wrap mid-phrase wherever it
-// runs out of room.
+// Frequency belongs with the routine name; the single line beneath it is
+// reserved for the useful planning detail (its usual days). This keeps the
+// management cards compact while preserving their scan-friendly hierarchy.
 export function ManageRoutineRow({
   title,
   color,
@@ -136,24 +138,23 @@ export function ManageRoutineRow({
 }) {
   const { colors, radius, isDark } = useTheme();
   const hex = routineColorHex(color, isDark);
-  const defaultSummary = defaultDays.length ? `Usually ${sortedShortDays(defaultDays)}` : 'Plan a different day each week';
+  const defaultSummary = defaultDays.length ? `Usually ${sortedShortDays(defaultDays)}` : 'Choose days weekly';
 
   return (
-    <View style={[styles.row, { backgroundColor: colors.paper, borderRadius: radius.lg }]}>
+    <View style={[styles.row, styles.manageRow, { backgroundColor: colors.paper, borderRadius: radius.lg }]}>
       <View style={[styles.spine, { backgroundColor: hex, borderRadius: radius.sm }]} />
       <View style={styles.body}>
-        <Text
-          numberOfLines={1}
-          style={[styles.title, androidTextFix, { color: colors.ink, fontFamily: fonts.bodySemiBold }]}
-        >
-          {title}
-        </Text>
-        <Text
-          numberOfLines={1}
-          style={[styles.manageMeta, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyMedium }]}
-        >
-          {timesPerWeek}×/week
-        </Text>
+        <View style={styles.manageTitleRow}>
+          <Text
+            numberOfLines={1}
+            style={[styles.title, styles.manageTitle, androidTextFix, { color: colors.ink, fontFamily: fonts.bodySemiBold }]}
+          >
+            {title}
+          </Text>
+          <Text style={[styles.frequency, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyMedium }]}>
+            {timesPerWeek}×/week
+          </Text>
+        </View>
         <Text
           numberOfLines={1}
           style={[styles.manageMeta, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyMedium }]}
@@ -190,10 +191,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     marginBottom: 8,
   },
+  compactRow: {
+    marginBottom: 0,
+  },
   addRow: {
     borderWidth: 1.5,
     borderStyle: 'dashed',
     backgroundColor: 'transparent',
+  },
+  manageRow: {
+    paddingVertical: 10,
+    marginBottom: 6,
   },
   spine: {
     width: 4,
@@ -226,6 +234,18 @@ const styles = StyleSheet.create({
   manageMeta: {
     fontSize: 12,
     marginTop: 2,
+  },
+  manageTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  manageTitle: {
+    flexShrink: 1,
+  },
+  frequency: {
+    fontSize: 12,
+    flexShrink: 0,
   },
   manageActions: {
     flexDirection: 'row',

@@ -120,3 +120,51 @@ export function formatDayHeading(iso: string): string {
 export function weeksBetween(aWeekStart: Date, bWeekStart: Date): number {
   return Math.round((bWeekStart.getTime() - aWeekStart.getTime()) / (7 * 86400000));
 }
+
+// --- Month-view calendar helpers -------------------------------------------
+// Used by the month-view popup opened from the week selector: a full month
+// grid the person can browse and tap a date/week from.
+
+export function startOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+// Shifts by whole calendar months. Only ever called with a start-of-month
+// anchor in this app, so there's no day-of-month overflow to worry about
+// (e.g. Jan 31 + 1 month landing on Mar 3).
+export function addMonths(d: Date, n: number): Date {
+  return new Date(d.getFullYear(), d.getMonth() + n, d.getDate());
+}
+
+// "September 2026"
+export function formatMonthYear(d: Date): string {
+  return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+export type MonthDayInfo = {
+  iso: string;
+  dayOfMonth: number;
+  inMonth: boolean;
+};
+
+// Full Monday-start weeks covering the month `monthAnchor` falls in, padded
+// with the tail of the previous month and the head of the next so every row
+// is a complete 7-day week (4–6 rows depending on the month).
+export function getMonthGridWeeks(monthAnchor: Date): MonthDayInfo[][] {
+  const som = startOfMonth(monthAnchor);
+  const eom = new Date(som.getFullYear(), som.getMonth() + 1, 0);
+  const gridStart = startOfWeek(som);
+  const gridEnd = startOfWeek(eom);
+  const weekCount = weeksBetween(gridStart, gridEnd) + 1;
+
+  const weeks: MonthDayInfo[][] = [];
+  for (let w = 0; w < weekCount; w++) {
+    const week: MonthDayInfo[] = [];
+    for (let i = 0; i < 7; i++) {
+      const date = addDays(gridStart, w * 7 + i);
+      week.push({ iso: isoDate(date), dayOfMonth: date.getDate(), inMonth: date.getMonth() === som.getMonth() });
+    }
+    weeks.push(week);
+  }
+  return weeks;
+}

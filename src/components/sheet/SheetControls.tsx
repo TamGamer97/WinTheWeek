@@ -79,12 +79,10 @@ export function SheetTextInput({
   value,
   onChangeText,
   placeholder,
-  autoFocus,
 }: {
   value: string;
   onChangeText: (v: string) => void;
   placeholder: string;
-  autoFocus?: boolean;
 }) {
   const { colors, radius } = useTheme();
   return (
@@ -93,7 +91,6 @@ export function SheetTextInput({
       onChangeText={onChangeText}
       placeholder={placeholder}
       placeholderTextColor={colors.muted}
-      autoFocus={autoFocus}
       style={[
         styles.input,
         {
@@ -148,29 +145,34 @@ export function GhostButton({ label, onPress }: { label: string; onPress: () => 
 export function Stepper({ value, onChange }: { value: number; onChange: (delta: number) => void }) {
   const { colors } = useTheme();
   return (
-    <View style={styles.stepperRow}>
-      <Text style={[styles.stepperLabel, androidTextFix, { color: colors.inkSoft, fontFamily: fonts.bodyBold }]}>
-        Times a week
-      </Text>
-      <View style={styles.stepper}>
-        <PressScale
-          scaleTo={0.92}
-          onPress={() => onChange(-1)}
-          style={[styles.stepBtn, { borderColor: colors.lineStrong, backgroundColor: colors.paperRaised }]}
-        >
-          <Text style={[styles.stepBtnText, androidTextFix, { color: colors.ink }]}>−</Text>
-        </PressScale>
-        <Text style={[styles.freqValue, androidTextFix, { color: colors.ink, fontFamily: fonts.headingBold }]}>
-          {value}
+    <View>
+      <View style={styles.stepperRow}>
+        <Text style={[styles.stepperLabel, androidTextFix, { color: colors.inkSoft, fontFamily: fonts.bodyBold }]}>
+          Days per week
         </Text>
-        <PressScale
-          scaleTo={0.92}
-          onPress={() => onChange(1)}
-          style={[styles.stepBtn, { borderColor: colors.lineStrong, backgroundColor: colors.paperRaised }]}
-        >
-          <Text style={[styles.stepBtnText, androidTextFix, { color: colors.ink }]}>+</Text>
-        </PressScale>
+        <View style={styles.stepper}>
+          <PressScale
+            scaleTo={0.92}
+            onPress={() => onChange(-1)}
+            style={[styles.stepBtn, { borderColor: colors.lineStrong, backgroundColor: colors.paperRaised }]}
+          >
+            <Text style={[styles.stepBtnText, androidTextFix, { color: colors.ink }]}>−</Text>
+          </PressScale>
+          <Text style={[styles.freqValue, androidTextFix, { color: colors.ink, fontFamily: fonts.headingBold }]}>
+            {value}
+          </Text>
+          <PressScale
+            scaleTo={0.92}
+            onPress={() => onChange(1)}
+            style={[styles.stepBtn, { borderColor: colors.lineStrong, backgroundColor: colors.paperRaised }]}
+          >
+            <Text style={[styles.stepBtnText, androidTextFix, { color: colors.ink }]}>+</Text>
+          </PressScale>
+        </View>
       </View>
+      <Text style={[styles.stepperDescription, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>
+        Choose how many days each week you want to do this routine.
+      </Text>
     </View>
   );
 }
@@ -194,7 +196,7 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   colorPicker: {
-    marginTop: 14,
+    marginTop: 20,
   },
   colorLabel: {
     fontSize: 13,
@@ -249,11 +251,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 14,
+    marginTop: 20,
     marginBottom: 4,
   },
   stepperLabel: {
     fontSize: 13,
+  },
+  stepperDescription: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 5,
   },
   stepper: {
     flexDirection: 'row',

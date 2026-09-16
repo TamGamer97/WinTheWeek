@@ -50,6 +50,7 @@ export default function TaskRow({
   animate = true,
   todayStyle = false,
   style,
+  interactive = true,
 }: {
   task: TaskLike;
   animate?: boolean;
@@ -58,6 +59,13 @@ export default function TaskRow({
   // list on Today) cancel out the card's built-in marginBottom instead of
   // double-spacing rows.
   style?: StyleProp<ViewStyle>;
+  // When false, this card doesn't claim its own press/long-press gesture —
+  // a parent wrapper owns touch handling instead (DraggableTaskList, whose
+  // rows need the whole card as a single press-and-drag surface, not just
+  // this component's own internal Pressable). The Check button underneath
+  // still gets its own tap regardless, since it's a separate, deeper
+  // responder either way.
+  interactive?: boolean;
 }) {
   const { colors, radius, shadowSoft, isDark } = useTheme();
   const { toggleDone, openTaskMenu } = useAppState();
@@ -81,51 +89,64 @@ export default function TaskRow({
     });
   };
 
+  const cardStyle = [
+    styles.card,
+    todayStyle && styles.todayCard,
+    {
+      backgroundColor: colors.paperRaised,
+      borderRadius: radius.lg,
+      opacity: task.done ? 0.62 : 1,
+    },
+    shadowSoft,
+    style,
+  ];
+
+  const cardBody = (
+    <>
+      <View style={[styles.spine, { backgroundColor: spineColor, borderRadius: radius.sm }]} />
+
+      <View style={styles.body}>
+        <Text
+          numberOfLines={2}
+          style={[
+            styles.title,
+            androidTextFix,
+            {
+              color: task.done ? colors.muted : colors.ink,
+              fontFamily: fonts.bodySemiBold,
+              textDecorationLine: task.done && !todayStyle ? 'line-through' : 'none',
+              textDecorationColor: colors.lineStrong,
+            },
+          ]}
+        >
+          {task.title}
+        </Text>
+        <MetaRow parts={metaParts} tint={taskColor} muted={colors.muted} plain={todayStyle} />
+      </View>
+
+      <Check
+        done={task.done}
+        onPress={() => toggleDone(String(task.id))}
+        color={taskColor}
+        variant={todayStyle ? 'today' : 'default'}
+      />
+    </>
+  );
+
   const content = (
     <View ref={wrapRef} collapsable={false}>
-      <PressScale
-        scaleTo={0.985}
-        onLongPress={openMenu}
-        style={[
-          styles.card,
-          todayStyle && styles.todayCard,
-          {
-            backgroundColor: colors.paperRaised,
-            borderRadius: radius.lg,
-            opacity: task.done ? 0.62 : 1,
-          },
-          shadowSoft,
-          style,
-        ]}
-      >
-        <View style={[styles.spine, { backgroundColor: spineColor, borderRadius: radius.sm }]} />
-
-        <View style={styles.body}>
-          <Text
-            numberOfLines={2}
-            style={[
-              styles.title,
-              androidTextFix,
-              {
-                color: task.done ? colors.muted : colors.ink,
-                fontFamily: fonts.bodySemiBold,
-                textDecorationLine: task.done && !todayStyle ? 'line-through' : 'none',
-                textDecorationColor: colors.lineStrong,
-              },
-            ]}
-          >
-            {task.title}
-          </Text>
-          <MetaRow parts={metaParts} tint={taskColor} muted={colors.muted} plain={todayStyle} />
-        </View>
-
-        <Check
-          done={task.done}
-          onPress={() => toggleDone(String(task.id))}
-          color={taskColor}
-          variant={todayStyle ? 'today' : 'default'}
-        />
-      </PressScale>
+      {interactive ? (
+        <PressScale scaleTo={0.985} onLongPress={openMenu} style={cardStyle}>
+          {cardBody}
+        </PressScale>
+      ) : (
+        // A parent wrapper (DraggableTaskList) already handles press/drag
+        // gestures and its own press-in/pop animation for the whole card —
+        // this is just the visual content, with no gesture handling of its
+        // own (the Check button below still works: it has its own,
+        // separate Pressable regardless of what wraps this).
+        <View style={cardStyle}>{cardBody}</View>
+      )}
     </View>
   );
 

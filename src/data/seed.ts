@@ -14,6 +14,7 @@ export const initialRoutines: Routine[] = [
     schedule: {},
     doneDates: {},
     order: 0,
+    dayOrder: {},
   },
 ];
 

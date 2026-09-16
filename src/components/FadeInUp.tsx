@@ -11,7 +11,10 @@ type Props = {
   replayKey?: string | number;
 };
 
-// Mirrors the design's `@keyframes fadeUp` (opacity 0 -> 1, translateY 6px -> 0).
+// Keep elevated content fully opaque while it enters. On Android, fading a
+// newly-mounted elevated view can briefly composite its shadow as a dark
+// rectangle before the native layer has settled. The small upward movement
+// still gives lists a calm entrance without exposing that artifact.
 export default function FadeInUp({ children, delay = 0, duration = 260, distance = 8, style, replayKey }: Props) {
   const progress = useRef(new Animated.Value(0)).current;
 
@@ -34,7 +37,6 @@ export default function FadeInUp({ children, delay = 0, duration = 260, distance
       style={[
         style,
         {
-          opacity: progress,
           transform: [
             {
               translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [distance, 0] }),
