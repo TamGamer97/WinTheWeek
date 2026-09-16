@@ -1,4 +1,4 @@
-# Cadence — Decisions
+# WinTheWeek — Decisions
 
 Non-obvious decisions a future developer might otherwise "fix" without
 knowing why they're there. This is not a changelog — routine bug fixes and
@@ -188,6 +188,82 @@ neutrals unchanged.
 for consistency — the divergence is deliberate. When adding a new light-mode
 neutral, pick a warm grey (no blue/violet lean) rather than matching
 `accent`'s hue, the way the existing `paper`/`ink`/`line` values do.
+
+---
+
+**Decision:** On the Analytics screen, the headline stat row's "this month"
+figure always reflects the real current month, computed from `todayIso` —
+it is not tied to `ProgressRingCalendar`'s own `monthAnchor`, even though
+that calendar sits directly below it and is independently browsable to any
+month. The "Routines" breakdown list, by contrast, *does* track the
+browsable `monthAnchor`.
+
+**Reason:** Tying the headline figure to `monthAnchor` was the first
+implementation, and it reads as a bug in practice: browsing the calendar
+to a future (or otherwise data-less) month made the top-level "this month"
+stat drop to 0%, silently misreporting the real current month's actual
+progress. The headline row is meant to be a fixed "right now" snapshot,
+matching how the streak and all-time stats beside it are never scoped to
+whatever's being browsed either.
+
+**Consequence:** Don't "simplify" the headline stat to reuse
+`monthAnchor` for consistency with the calendar/breakdown below it — that
+reintroduces the bug. If a future stat needs to reflect the browsed month,
+it belongs in or beside the calendar card, not the headline row.
+
+---
+
+**Decision:** Every real date strictly before `todayIso` is read-only —
+`AppState` rejects `toggleDone`, `toggleRoutineForWeekDay`,
+`reorderRoutinesForDay`, `menuRemoveRoutineDay`, and `confirmMoveRoutineDay`
+for a past date (and `confirmRoutinePlan` filters past days out of what it
+saves), regardless of which UI path calls them. Today itself is never
+locked.
+
+**Reason:** Explicit product requirement — being able to add, remove, or
+check off a routine on an already-passed day defeats the point of a routine
+tracker (you could retroactively "complete" days to fake a streak), and the
+Week screen's `goToPrevWeek` has no lower bound, so every past week was
+reachable and, before this, fully editable.
+
+**Consequence:** Guard any new day-specific mutation in `AppState` the same
+way (compare the date involved to `todayIso`) rather than relying on the UI
+alone to prevent it — the state layer is the source of truth, the UI (dimmed
+checkboxes, hidden add/remove buttons, `DraggableTaskList`'s `locked` prop,
+`TaskMenu` hiding "Switch day"/"Remove this day") only has to make that
+already-enforced read-only state legible. See `docs/PROJECT.md`'s "Past-day
+locking" section for the full guard list.
+
+---
+
+**Decision:** `Routine.defaultDaysHistory: { untilIso, days }[]` records
+superseded `defaultDays` values, and `daysForWeek()` resolves each day of a
+week *independently* against whichever snapshot actually applied on that
+day's real date (walking the history oldest-first for the one whose
+`untilIso` is after that date, else the live `defaultDays`) — rather than
+resolving a whole week at once from the current `defaultDays`.
+
+**Reason:** Editing a routine's regular days used to rewrite history:
+`daysForWeek()` fell back to the live `defaultDays` for any week with no
+explicit `schedule` override, so an edit today silently changed what every
+past (and current, and future) unoverridden week resolved to — which could
+even make a genuinely-completed day (`doneDates[iso] = true`) disappear
+from its own history, since `tasksFor` only renders a day's instance when
+`daysForWeek(...).includes(day)`. Snapshotting at *week* granularity was
+considered and rejected: the day an edit happens on always splits its own
+week into an already-passed portion (must keep resolving against the old
+value) and a today-onward portion (must pick up the new one), so anything
+coarser than per-day resolution can't represent the week the edit actually
+happens in without a separate mixed-week special case.
+
+**Consequence:** Don't "simplify" `daysForWeek()` back to a single
+week-level lookup — that reintroduces the history-rewriting bug for the
+week straddling an edit. A history entry is appended (never mutated) only
+when a routine edit actually changes the day-set (order-independent
+comparison — see `sameDayKeySet` in `AppState.tsx`); re-saving the same
+days must not grow the array. `schedule[weekId]` (manual per-week planning)
+is a separate, higher-priority mechanism and this history never writes to
+it or reads from it.
 
 ---
 

@@ -1,6 +1,6 @@
-# Cadence — Project overview
+# WinTheWeek — Project overview
 
-Cadence is a weekly routine-planning mobile app: a React Native (Expo) port
+WinTheWeek is a weekly routine-planning mobile app: a React Native (Expo) port
 of an HTML/CSS/JS mockup, kept visually and behaviorally close to that
 original design (same screens, colors, typography, copy, and
 micro-interactions).
@@ -9,7 +9,7 @@ micro-interactions).
 
 - Expo SDK 57, React Native 0.86, React 19, TypeScript (`strict: true`).
 - No navigation library — screen switching is app-level state
-  (`ScreenName = 'week' | 'today' | 'settings'`), not a router.
+  (`ScreenName = 'week' | 'today' | 'settings' | 'analytics'`), not a router.
 - No backend, no auth, single-user, local-only. State lives in memory for
   the session and is persisted to `@react-native-async-storage/async-storage`
   on-device.
@@ -36,6 +36,15 @@ the same underlying data differently:
   that day's routine instances, each completable and drag-reorderable.
 - **Settings screen** — theme (light/dark) and notification toggles, plus
   "Manage routines" (edit color/frequency/default days, or delete).
+- **Analytics screen** — a progress overview: a fixed "right now" stat row
+  (current streak, this real month's completion rate, all-time completed
+  count), a navigable month calendar where each day is a progress ring
+  (empty/no-plan, soft red at 0%, soft blue with a precise arc for partial,
+  solid green at 100%), and a per-routine completion breakdown scoped to
+  whichever month the calendar is currently browsing. Opened via its own
+  header icon (left of the settings gear on Today/Week), using the same
+  `openX`/`closeX` + `previousScreen` pattern as Settings (see State below).
+  All of its figures are derived, not stored — see `src/data/analytics.ts`.
 
 ## Data model (`src/data/types.ts`)
 
@@ -43,7 +52,8 @@ the same underlying data differently:
 Routine {
   id, title, color (a RoutineColorId, not a hex — see below)
   timesPerWeek: number
-  defaultDays: DayKey[]              // the routine's usual weekly rhythm
+  defaultDays: DayKey[]              // the routine's usual weekly rhythm (current/live value)
+  defaultDaysHistory: { untilIso, days }[] // superseded defaultDays values (see below)
   schedule: Record<weekId, DayKey[]> // explicit per-week overrides
   doneDates: Record<isoDate, boolean> // completion, keyed by real calendar date
   order: number                      // default display order, used as a fallback (see below)
@@ -59,10 +69,17 @@ RoutineInstance {                    // a routine rendered on one specific real 
 **`daysForWeek(routine, weekId)`** (`src/data/schedule.ts`) is the single
 resolver for "which days does this routine land on this week": if
 `weekId in routine.schedule` (even an empty array — "cleared this week"),
-use that; otherwise fall back to `defaultDays`. Every screen that shows or
-edits a routine's days for a given week goes through this function, so they
-can never disagree with each other. Editing a specific week's plan writes
-only into `schedule[weekId]`; it never touches `defaultDays`.
+use that. Otherwise each day of that week is resolved *independently*
+against whichever `defaultDays` value actually applied on that day's real
+date — walking `defaultDaysHistory` (oldest first) for a snapshot whose
+`untilIso` is after that date, else falling through to the live
+`defaultDays`. This per-day (not per-week) resolution is what lets editing
+a routine's regular days apply "from today onward" without rewriting a
+week that's half past, half future — see `docs/DECISIONS.md`. Every screen
+that shows or edits a routine's days for a given week goes through this
+function, so they can never disagree with each other. Editing a specific
+week's plan writes only into `schedule[weekId]`; it never touches
+`defaultDays`.
 
 A `weekId` is always the ISO date (`YYYY-MM-DD`) of that week's **Monday**
 — weeks are Monday-start throughout (`src/utils/date.ts`). Completion
@@ -104,12 +121,13 @@ from an older shape at `@cadence/routines/v1` (`migrateLegacyRoutines`) for
 data saved before the week-planning model existed (flat `days` → 
 `defaultDays`, `doneMap` keyed by weekday → `doneDates` keyed by real date
 mapped onto the current week). Both restore paths backfill `order` from
-array index when it's missing (data saved before drag-reorder existed), and
+array index when it's missing (data saved before drag-reorder existed),
 `dayOrder` to `{}` when missing (data saved before per-day reordering
-existed) — both fields were added to `restoreRoutinesV2` as optional,
-defaulted reads rather than a version bump, and any future field addition
-should follow that same precedent unless the shape change is actually
-incompatible with old data.
+existed), and `defaultDaysHistory` to `[]` when missing (data saved before
+past-day locking existed) — all three fields were added to
+`restoreRoutinesV2` as optional, defaulted reads rather than a version
+bump, and any future field addition should follow that same precedent
+unless the shape change is actually incompatible with old data.
 
 ## State (`src/state/AppState.tsx`)
 
@@ -131,6 +149,13 @@ Two independent "current week" concepts exist and must stay independent:
 Today screen logic must always use `todayWeekId`/`todayDayKey`, never
 `weekId` — conflating the two would make Today follow whatever week the
 Week screen happens to be browsing.
+
+Settings and Analytics are both reached the same way: `openSettings`/
+`openAnalytics` stash the current screen into a single shared
+`previousScreen`, then `closeSettings`/`closeAnalytics` return to it via
+`showScreen`. This is safe only because the two can't be opened from
+within each other; a third such screen would need to confirm that's still
+true before reusing `previousScreen` again.
 
 ## The bottom sheet system (`src/components/BottomSheet.tsx`)
 
@@ -175,6 +200,30 @@ written; routines not shown in the dragged list, and every other date, keep
 their existing order untouched. This same component (and the same
 per-day-only write) is reused by the day-planning sheet's list.
 
+## Past-day locking
+
+Any real date strictly before `todayIso` is a read-only record — today
+itself stays fully editable. This is enforced at two layers:
+
+- **`AppState`** is the source of truth: `toggleDone`, `toggleRoutineForWeekDay`,
+  `reorderRoutinesForDay`, `menuRemoveRoutineDay`, and `confirmMoveRoutineDay`
+  each no-op if the date involved is in the past; `confirmRoutinePlan` filters
+  any past day out of what it saves. These guards apply regardless of which
+  UI path reaches them.
+- **The UI** reflects the same cutoff so it reads as read-only rather than a
+  silent no-op: `Check`/`TaskRow` dim and disable the checkbox, `DraggableTaskList`
+  takes a `locked` prop that disables drag and the long-press menu, `TaskMenu`
+  hides "Switch day"/"Remove this day" (but keeps "Edit routine" — that's
+  routine-level, not day-specific), the day-planning sheet
+  (`BottomSheet.tsx`'s `useDayContent`) hides its add/remove affordances and
+  swaps its copy, and the move-day/routine-plan day pickers
+  (`sheet/DayOptions.tsx`) exclude past days as selectable.
+
+When adding a new day-specific mutation, add its guard to `AppState` first
+(so it's safe no matter what UI reaches it), then make the UI path that
+triggers it reflect the locked state rather than leaving a live-looking
+control that silently does nothing.
+
 ## Month-view calendar (`src/components/MonthCalendar.tsx`)
 
 Opened from the Week screen's nav bar (`WeekNav.tsx`) via an always-visible
@@ -185,6 +234,44 @@ month currently displayed (`monthViewAnchor`) is independent of
 `currentWeekStart` — browsing months in the popup does not move the actual
 browsed week until a date is tapped (`goToWeekOf`) or "Jump to today"
 (`monthViewGoToToday`) is used, both of which also close the sheet.
+
+## Analytics (`src/screens/AnalyticsScreen.tsx`, `src/data/analytics.ts`)
+
+All figures are computed on demand from `routines` — nothing is persisted
+specifically for analytics. `src/data/analytics.ts` mirrors `daysForWeek`'s
+role: pure functions of `(routines, iso/month)`, resolving "planned" the
+same way `tasksFor()` does, so this screen can never disagree with what
+Today/Week actually show.
+
+- `dayCompletion(routines, iso)` — `{ planned, done }` for one real date.
+- `computeStreaks(routines, todayIso)` — walks backward from today for the
+  current streak (an unfinished today doesn't break it, since the day
+  isn't over; a day with nothing planned is skipped rather than breaking
+  or extending anything), and slides the same rule across a trailing
+  180-day window for the best streak — a bounded scan rather than an
+  unbounded all-time one.
+- `monthSummary` / `routineMonthStats` — sum completion across a month, up
+  to today for the current month (so an in-progress month isn't dragged
+  down by days that haven't happened yet), in full for a past month.
+
+The screen has two independently-scoped notions of "month," deliberately
+not sharing state: the headline stat row's "this month" figure always
+uses the real current month (`todayIso`), while `ProgressRingCalendar`'s
+own `monthAnchor` (a plain `useState<Date>`, its own prev/next navigation)
+is freely browsable — and the "Routines" breakdown list below it tracks
+that same browsable `monthAnchor`, not the fixed headline figure. Tying
+the headline stat to the browsable anchor was tried and reads as a bug:
+navigating to a future empty month made the top-level "this month" stat
+drop to 0%, misreporting the real current month's progress.
+
+`ProgressRingCalendar` reuses `MonthCalendar`'s grid skeleton
+(`getMonthGridWeeks`, header, weekday row) but replaces its plain
+today/selected day mark with a completion-ratio readout per day: nothing
+rendered for a day with no plan (past or future), a soft red disc at 0%, a
+soft blue disc with a precise SVG arc for partial, and a solid green disc
+at 100% — `colors.danger`/`accent`/`complete` throughout, never invented
+colors. Today additionally gets the same accent outline ring
+`MonthCalendar` already uses to mark "today."
 
 ## Theming (`src/theme/`)
 
@@ -234,6 +321,7 @@ src/theme/                     colors.ts (palettes, routineColorHex, shadows),
                                 fonts.ts (font names, androidTextFix), ThemeContext.tsx
 src/data/types.ts               Routine, RoutineInstance, DayKey, SheetMode, ScreenName
 src/data/schedule.ts            daysForWeek() — the one schedule resolver
+src/data/analytics.ts           Pure stat helpers (streaks, month/day completion)
 src/data/seed.ts                Initial/default routine data
 src/state/AppState.tsx          All app state/logic (single context)
 src/utils/date.ts               Pure date helpers: weeks, month grid, formatting
@@ -243,9 +331,10 @@ src/components/                 Reusable UI (rows, sheet, nav, dialogs, drag lis
   ConfirmDialog.tsx              Yes/no + destructive confirmation modal
   DraggableTaskList.tsx          Today's drag-to-reorder list
   MonthCalendar.tsx              Month grid used by the month-view sheet mode
+  ProgressRingCalendar.tsx      Month grid with per-day completion rings (Analytics)
   WeekNav.tsx                    Week screen's week selector + calendar button
   sheet/                         Shared sheet building blocks (inputs, pickers, rows)
-src/screens/                    WeekScreen, TodayScreen, SettingsScreen
+src/screens/                    WeekScreen, TodayScreen, SettingsScreen, AnalyticsScreen
 ```
 
 ## Build / run
