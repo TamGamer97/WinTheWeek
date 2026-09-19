@@ -55,24 +55,24 @@ export default function RoutinePlanDayRow({
   disabled,
   isToday,
   otherTasks,
-  missedRegular,
+  retroactive,
   routineColor,
   onToggle,
 }: {
   day: DayInfo;
   index: number;
   picked: boolean;
-  // Already past, or (unpicked and) the routine's weekly quota is already
-  // met by the days picked so far.
+  // True for a *real* past commitment that already existed — the one case
+  // picking can't be undone here. A past day that's unpicked, or picked as
+  // a retroactive instance, stays toggleable (off only); see `disabled`.
   disabled: boolean;
   isToday: boolean;
   otherTasks: RoutineInstance[];
-  // This day is in the routine's *current* regular-days template, but
-  // already passed before that became true this week, so it couldn't
-  // apply — see missedRegularDaysThisWeek. Worth explaining right here,
-  // since this is exactly the row someone would otherwise stare at
-  // wondering "didn't I just set this day?"
-  missedRegular?: boolean;
+  // This past day only shows the routine because of a schedule change (a
+  // fresh creation, or a `defaultDays` edit) that happened after the date
+  // itself had already passed — see data/schedule.ts's isRetroactiveDay.
+  // Visible, but never completable and excluded from analytics.
+  retroactive?: boolean;
   routineColor: string;
   onToggle: () => void;
 }) {
@@ -123,9 +123,9 @@ export default function RoutinePlanDayRow({
           <Text style={[styles.dayName, androidTextFix, { color: colors.ink, fontFamily: fonts.headingSemiBold }]}>
             {day.label}
           </Text>
-          {missedRegular ? (
+          {retroactive ? (
             <Text numberOfLines={1} style={[styles.meta, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>
-              Usually happens here — already passed
+              Included automatically — won't count toward your progress
             </Text>
           ) : (
             <OtherTasksLine tasks={otherTasks} />

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { androidTextFix, fonts } from '../theme/fonts';
-import { ChevronLeftIcon, ChevronRightIcon, MoonIcon, RepeatIcon, SunIcon } from '../icons/Icons';
+import { ChevronLeftIcon, ChevronRightIcon, HelpCircleIcon, MoonIcon, RepeatIcon, SunIcon } from '../icons/Icons';
 import IconButton from '../components/IconButton';
 import PressScale from '../components/PressScale';
 import Switch from '../components/Switch';
@@ -11,7 +11,7 @@ import { useAppState } from '../state/AppState';
 
 export default function SettingsScreen() {
   const { colors, radius, shadowCard, isDark, setIsDark } = useTheme();
-  const { closeSettings, openRoutineManager } = useAppState();
+  const { closeSettings, openRoutineManager, replayTutorial } = useAppState();
   const [dailyReminder, setDailyReminder] = useState(true);
   const [weekStartsMonday, setWeekStartsMonday] = useState(true);
 
@@ -80,6 +80,22 @@ export default function SettingsScreen() {
           </View>
           <Switch value={weekStartsMonday} onValueChange={setWeekStartsMonday} />
         </View>
+      </View>
+
+      <Text style={[styles.sectionLabel, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyBold }]}>Help</Text>
+      <View style={[styles.card, { backgroundColor: colors.paperRaised, borderColor: colors.line, borderRadius: radius.lg }, shadowCard]}>
+        <PressScale scaleTo={0.99} onPress={replayTutorial} style={styles.row}>
+          <View style={[styles.rowIcon, { backgroundColor: colors.accentSoft }]}>
+            <HelpCircleIcon size={15} color={colors.accent} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.rowTitle, androidTextFix, { color: colors.ink, fontFamily: fonts.bodySemiBold }]}>Replay tutorial</Text>
+            <Text style={[styles.rowSub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>
+              See the intro and quick tour again
+            </Text>
+          </View>
+          <ChevronRightIcon size={15} color={colors.muted} />
+        </PressScale>
       </View>
 
       <Text style={[styles.sectionLabel, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyBold }]}>About</Text>

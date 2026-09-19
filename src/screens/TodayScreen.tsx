@@ -32,7 +32,10 @@ export default function TodayScreen() {
   const dayTasks = tasksFor(todayWeekId, currentDay);
   const doneCount = dayTasks.filter((t) => t.done).length;
   const allDone = dayTasks.length > 0 && doneCount === dayTasks.length;
-  // A day already lived through is a read-only record — see docs/DECISIONS.md.
+  // A day already lived through is read-only — see docs/DECISIONS.md. It
+  // can still show tasks (a *retroactive* schedule change can add one — see
+  // data/schedule.ts's isRetroactiveDay), just never anything added by hand
+  // here.
   const isPastDay = day.iso < todayIso;
 
   // Reuses the same "plan this day" sheet the Week screen's day popup opens
@@ -96,9 +99,9 @@ export default function TodayScreen() {
 
       <SlideDayTransition dayKey={currentDay} direction={todayDirection}>
         <View style={{ paddingHorizontal: 24, paddingTop: 16 }}>
-          {/* Always visible for a past day (not just when empty) — the "+"
-              button and checkboxes are simply absent/disabled elsewhere, so
-              this is what actually explains why, instead of a silent gap. */}
+          {/* Always visible for a past day (not just when empty), so the
+              checkboxes/menu options staying restricted reads as intentional
+              rather than a bug — see docs/DECISIONS.md. */}
           {isPastDay ? (
             <View style={[styles.pastBanner, { backgroundColor: colors.line }]}>
               <Text
@@ -111,7 +114,7 @@ export default function TodayScreen() {
 
           {dayTasks.length === 0 ? (
             isPastDay ? (
-              <EmptyState icon="plus" title="Nothing was planned" subtitle="No routines were scheduled" />
+              <EmptyState icon="plus" title="Nothing was planned" subtitle="This day has passed" />
             ) : (
               <>
                 <EmptyState icon="plus" title="Nothing planned" subtitle="Add something, or leave it open" />

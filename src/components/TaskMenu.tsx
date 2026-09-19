@@ -3,7 +3,8 @@ import { Animated, Dimensions, Easing, Pressable, StyleSheet, View } from 'react
 import { useTheme } from '../theme/ThemeContext';
 import { CalendarIcon, EditIcon, RemoveDayIcon } from '../icons/Icons';
 import { useAppState } from '../state/AppState';
-import { dayMeta, dayKeyOf, parseISODate } from '../utils/date';
+import { isRetroactiveDay } from '../data/schedule';
+import { dayMeta, dayKeyOf, parseISODate, weekIdFor } from '../utils/date';
 
 // This popover only ever acts on the one task instance it was opened for —
 // removing or editing the whole routine belongs to Manage Routines, reached
@@ -23,6 +24,7 @@ export default function TaskMenu() {
     menuEditRoutine,
     requestConfirm,
     todayIso,
+    todayWeekId,
   } = useAppState();
 
   const open = !!menuItemId && !!menuAnchor;
@@ -42,10 +44,23 @@ export default function TaskMenu() {
 
   if (!open || !menuAnchor || !menuItemId) return null;
 
-  // A past day's task is a read-only record — only "Edit routine" (which
-  // edits the routine's template, not this specific day) still applies.
-  const [, menuItemIso] = menuItemId.split('::');
-  const locked = menuItemIso < todayIso;
+  // A past day's task is real history and can't be moved or removed —
+  // except a *retroactive* instance (one that only landed here because of a
+  // schedule change made after the date itself had already passed; see
+  // data/schedule.ts's isRetroactiveDay), which can still be moved or
+  // removed since it isn't real history to begin with. "Edit routine" (the
+  // routine's template, not this specific day) always applies regardless.
+  const [ridStr, menuItemIso] = menuItemId.split('::');
+  const routine = routines.find((r) => String(r.id) === ridStr);
+  const isPast = menuItemIso < todayIso;
+  const isRetroactive =
+    isPast &&
+    !!routine &&
+    isRetroactiveDay(routine, weekIdFor(parseISODate(menuItemIso)), dayKeyOf(parseISODate(menuItemIso)), {
+      iso: todayIso,
+      weekId: todayWeekId,
+    });
+  const canEditThisDay = !isPast || isRetroactive;
 
   const screenWidth = Dimensions.get('window').width;
   const top = menuAnchor.y + menuAnchor.height + 6;
@@ -54,9 +69,7 @@ export default function TaskMenu() {
 
   const removeThisDay = () => {
     const id = menuItemId;
-    const [ridStr, iso] = id.split('::');
-    const routine = routines.find((r) => String(r.id) === ridStr);
-    const dayLabel = dayMeta(dayKeyOf(parseISODate(iso))).label;
+    const dayLabel = dayMeta(dayKeyOf(parseISODate(menuItemIso))).label;
     closeTaskMenu();
     requestConfirm({
       title: `Remove from ${dayLabel}?`,
@@ -91,12 +104,12 @@ export default function TaskMenu() {
       >
         <>
           <MenuButton label="Edit routine" onPress={menuEditRoutine} colors={colors} icon={<EditIcon color={colors.inkSoft} />} />
-          {locked ? null : (
-            <>
-              <MenuButton label="Switch day" onPress={menuMoveRoutineDay} colors={colors} icon={<CalendarIcon color={colors.inkSoft} />} />
-              <MenuButton label="Remove this day" onPress={removeThisDay} colors={colors} icon={<RemoveDayIcon color={colors.inkSoft} />} />
-            </>
-          )}
+          {canEditThisDay ? (
+            <MenuButton label="Switch day" onPress={menuMoveRoutineDay} colors={colors} icon={<CalendarIcon color={colors.inkSoft} />} />
+          ) : null}
+          {canEditThisDay ? (
+            <MenuButton label="Remove this day" onPress={removeThisDay} colors={colors} icon={<RemoveDayIcon color={colors.inkSoft} />} />
+          ) : null}
         </>
       </Animated.View>
     </>

@@ -191,6 +191,67 @@ badge, title, message, then a stacked full-width primary button and a
 ghost cancel button underneath — see `docs/DECISIONS.md` before changing
 this look.
 
+## Onboarding: intro slides and coach-mark tour (`src/components/onboarding/`)
+
+Two independent, sequentially-gated pieces, both self-mounted in `App.tsx`'s
+`AppShell` alongside `TaskMenu`/`BottomSheet`/`ConfirmDialog`, at the top of
+the app's fixed `zIndex` stack (`BottomSheet` 20, `TaskMenu` 30,
+`ConfirmDialog` 40, `CoachMarkOverlay` 45, `IntroSlides` 50 — highest wins,
+keep new overlays consistent with this order):
+
+- **`IntroSlides.tsx`** — a one-time, full-screen, opaque set of 4 paged
+  slides (`ScrollView` + `pagingEnabled`, no dependency needed) shown before
+  anything else on first launch. Self-contained like `ConfirmDialog` — reads
+  its own visibility from `AppState` (`hasHydratedOnboarding && !seenIntro`)
+  rather than being told when to show.
+- **`CoachMarkOverlay.tsx`** — a 3-step spotlight tour that runs immediately
+  after, pointing at the "+" FAB, the Week nav tab, and the header's
+  Analytics icon in turn. Unlike the other overlays, this one is
+  conditionally *mounted* by `AppShell` (`{coachmarksActive && <CoachMarkOverlay />}`)
+  rather than always-mounted-but-self-hiding, since it only ever makes sense
+  on Today. The spotlight "hole" is a `react-native-svg` `Mask`/`Rect` (a
+  luminance mask — a black rect subtracts from a white one) with its
+  `x/y/width/height` driven by `Animated.Value`s via
+  `Animated.createAnimatedComponent(Rect)`, necessarily `useNativeDriver:
+  false` (raw x/y/width/height aren't native-driver-eligible — same
+  constraint `NavBar.tsx`'s sliding tab indicator already works around). The
+  scrim itself is a dedicated, deliberately dark color local to this
+  component — not the app's own `colors.scrim` (tuned much lighter, for a
+  backdrop behind a centered dialog), which read as barely-there when first
+  tried here. Two more `AnimatedRect`s track the hole outside the mask (so
+  they're unaffected by it): a static accent-colored ring outline, and a
+  looping "radar ping" ring (`pulse`, an `Animated.loop`) that expands and
+  fades — the one cue that reliably reads as "look here" versus just a
+  brighter patch of screen. Ending the tour (via "Got it"/"Skip tour", navigating away from Today, or
+  any other way the component gets unmounted) always calls
+  `completeCoachmarks()` exactly once, guarded by a `finishedRef` — see the
+  component for why an explicit finish plays a local fade before flipping
+  the flag (so `AppShell` unmounting it a moment later is never a visible
+  pop) while an unexpected unmount (e.g. mid-tour navigation) marks it seen
+  from the unmount cleanup instead, with no fade.
+
+**Target measurement**: the three coach-mark targets (`Fab.tsx`'s "+",
+`NavBar.tsx`'s Week item, `ScreenHeader.tsx`'s Analytics icon) each wrap in a
+bare `<View ref={...} collapsable={false}>` and register themselves via
+`AppState`'s `registerCoachTarget(key, node)` on mount /
+`registerCoachTarget(key, null)` on unmount. `collapsable={false}` is
+required — without it Android's view-flattening can drop the wrapper from
+the native tree and `measureInWindow` (what `measureCoachTarget(key)`
+resolves through) silently fails in a release build. This ref registry
+lives in a plain `useRef` map, not the state object, since registering a
+target shouldn't trigger a re-render of everything reading `AppState`.
+
+**Persistence**: `@cadence/onboarding/v1` stores `{ seenIntro,
+seenCoachmarks }`, hydrated/saved with the same guarded
+hydrate-then-save-gated-on-a-flag pattern routines use (see "Persistence and
+migration" above) — its own `hasHydratedOnboarding` flag gates both the save effect
+and whether `IntroSlides` is allowed to render, so a returning user never
+sees a one-frame flash of the intro before storage confirms they've already
+seen it. Settings' "Replay tutorial" row calls `replayTutorial()`, which
+resets both flags and calls `showScreen('today')` — enough to close
+Settings (it's just whichever `ScreenName` is active) and put the tour back
+on a valid screen, so replaying looks identical to first launch.
+
 ## Drag-and-drop reordering (`src/components/DraggableTaskList.tsx`)
 
 Today's task list supports press-and-drag reordering via a long press on
@@ -208,46 +269,70 @@ written; routines not shown in the dragged list, and every other date, keep
 their existing order untouched. This same component (and the same
 per-day-only write) is reused by the day-planning sheet's list.
 
-## Past-day locking
+## Past days: real history vs. retroactive scheduling
 
-Any real date strictly before `todayIso` is a read-only record — today
-itself stays fully editable. This is enforced at two layers:
+A real date strictly before `todayIso` is read-only, today itself always
+excepted — *mark done*, *reorder*, *move to another day*, and *manually add
+a routine* are all unconditionally blocked for it, regardless of which UI
+path reaches them. The one exception: a day can still show a routine it
+never had, if that's the direct result of creating a routine, or editing an
+existing one's regular days (`defaultDays`), with the day already past when
+the create/edit happened. Such an instance renders exactly like any other
+past task (dimmed, non-completable — the ordinary past-day styling already
+covers this, no separate treatment needed) but, unlike a genuinely
+pre-existing entry, it can still be removed or moved for that one occurrence.
+This is called a *retroactive* instance (`RoutineInstance.retroactive`,
+`data/schedule.ts`'s `isRetroactiveDay()`) and it is never something a user
+picks by hand — only editing/creating a routine's `defaultDays` produces
+one. Analytics (`src/data/analytics.ts`) never counts one, for the same
+reason it must never be completable: it wasn't actually planned in advance.
 
-- **`AppState`** is the source of truth: `toggleDone`, `toggleRoutineForWeekDay`,
-  `reorderRoutinesForDay`, and `menuRemoveRoutineDay` each no-op if the date
-  involved is in the past; `confirmMoveRoutineDay` no-ops if either the
-  source or destination date is past. These guards apply regardless of
-  which UI path reaches them. `confirmRoutinePlan` is deliberately *not*
-  guarded this way — see `docs/DECISIONS.md` for why filtering there is a
-  bug, not a safety net.
-- **The UI** reflects the same cutoff so it reads as read-only rather than a
-  silent no-op: `Check`/`TaskRow` dim and disable the checkbox, `DraggableTaskList`
-  takes a `locked` prop that disables drag and the long-press menu, `TaskMenu`
-  hides "Switch day"/"Remove this day" (but keeps "Edit routine" — that's
-  routine-level, not day-specific), the day-planning sheet
-  (`BottomSheet.tsx`'s `useDayContent`) hides its add/remove affordances and
-  swaps its copy, and the move-day picker (`sheet/DayOptions.tsx`) and the
-  routine-plan day rows (`sheet/RoutinePlanDayRow.tsx`) exclude/disable past
-  days as selectable.
+**It's derived, not stored.** `isRetroactiveDay(routine, weekId, day, today)`
+is a pure function of the routine's own template (`defaultDays`,
+`defaultDaysHistory`, `createdIso`) — true when the day is past, in the
+*current* `defaultDays`, but the historical per-day resolution (what
+`defaultDaysAt`/`daysForWeek` already used for past-day locking) does *not*
+include it. It deliberately never looks at `routine.schedule`: see
+`docs/DECISIONS.md` for why checking the override there would make removing
+one retroactive day silently turn every *other* retroactive day on the same
+week into a locked one.
 
-When adding a new day-specific mutation, add its guard to `AppState` first
-(so it's safe no matter what UI reaches it), then make the UI path that
-triggers it reflect the locked state rather than leaving a live-looking
-control that silently does nothing. Disabling or hiding a control isn't
-enough on its own either — pair it with a short, plainly-worded explanation
-(e.g. TodayScreen's always-visible "This day has passed, so it can't be
-edited" banner for a locked day, not just an absent "+") so the read-only
-state reads as intentional rather than a bug.
+`daysForWeek(routine, weekId, today?)` gained an optional 3rd argument,
+`{ iso: todayIso, weekId: todayWeekId }` — the *real* current date/week,
+never whatever week is being browsed. Passing it merges in this week's
+retroactive days on top of the historical resolution (only when `weekId`
+really is the current week, and only when there's no explicit `schedule`
+override — an override, however it came to exist, always fully decides the
+week). Every read that should reflect retroactive days (`tasksFor`,
+`pendingRoutines`, the routine-plan sheet's seeding and "planned" counts)
+passes `today`; everything that needs the pure historical record instead —
+analytics, and any check for whether a day was already *real* before some
+in-progress edit — uses the plain 2-arg call and gets exactly today's
+behavior unchanged.
 
-`missedRegularDaysThisWeek(routine, weekId, todayIso)` (`src/data/schedule.ts`)
-covers a related, easy-to-miss confusion: adding a day to a routine's
-regular-days template mid-week can't retroactively apply to that day if it
-already passed (see `daysForWeek`'s per-day resolution above), so the
-current week can look "short" by one day with no obvious reason. This
-surfaces that reason directly — `RoutinePendingRow`'s "Not scheduled yet"
-note and the matching day row in the routine-plan sheet
-(`sheet/RoutinePlanDayRow.tsx`) — rather than leaving it looking like the
-day picker silently ignored a choice.
+**Enforcement**: `toggleDone`, `reorderRoutinesForDay` still no-op
+unconditionally for a past date. `confirmMoveRoutineDay` still always
+blocks a past *destination*; its past *source* is blocked unless
+`isRetroactiveDay` is true. `toggleRoutineForWeekDay` and
+`menuRemoveRoutineDay` always block adding to a past day, and only allow
+removing a retroactive one. `confirmRoutinePlan` force-keeps only *real*
+past days (2-arg `daysForWeek`) regardless of what the routine-plan
+picker's selection says; a past day in that picker (`useRoutinePlanContent`)
+can only ever be toggled *off*, never freshly picked — `RoutinePlanDayRow`'s
+`disabled` prop reflects that, its `retroactive` prop drives the "won't
+count" caption. `TaskMenu` gates both "Switch day" and "Remove this day" on
+the same `!isPast || isRetroactive` check. The day-planning sheet
+(`BottomSheet.tsx`'s `useDayContent`) hides its "Add a routine" section
+outright for any past day, and `ScheduledRoutineRow`'s remove button only
+appears for a non-past or retroactive entry.
+
+**Past weeks** (`weekId < todayWeekId`, not just a past day within the
+current week) get no planning affordance at all — `WeekScreen.tsx` hides
+the "Not scheduled yet" row entirely when browsing one, which is also the
+only path to the routine-plan sheet, so that's fully closed off too. No
+separate "is this week past" check is needed anywhere else: `isRetroactiveDay`
+is false by construction for any week that isn't the current one, so every
+day in a past week is simply an ordinary locked past day.
 
 ## Month-view calendar (`src/components/MonthCalendar.tsx`)
 
@@ -371,9 +456,10 @@ npm run build:android:preview  # EAS internal APK build
 ```
 
 The `preview` EAS profile in `eas.json` produces an installable Android APK.
-It requires an authenticated EAS CLI session and a configured EAS project;
-the app release version is defined in `app.json` and currently displays as
-`0.0.1` in Settings.
+The `production` profile produces a Google Play-ready Android App Bundle
+(`.aab`). Both require an authenticated EAS CLI session and a configured EAS
+project; the app release version is defined in `app.json` and currently
+displays as `0.0.1` in Settings.
 
 There is no CI and no automated test suite; see `AGENTS.md` for how to
 verify a change in this repo.

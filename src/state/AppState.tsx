@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import type { View } from 'react-native';
 import {
   DayKey,
   DayKeyOrUnscheduled,
@@ -10,7 +11,7 @@ import {
   SheetMode,
 } from '../data/types';
 import { initialRoutineIdCounter, initialRoutines } from '../data/seed';
-import { daysForWeek } from '../data/schedule';
+import { daysForWeek, isRetroactiveDay } from '../data/schedule';
 import { DEFAULT_ROUTINE_COLOR } from '../theme/colors';
 import {
   DAY_KEYS,
@@ -42,6 +43,12 @@ export type ConfirmRequest = {
 
 const ROUTINES_STORAGE_KEY = '@cadence/routines/v2';
 const LEGACY_ROUTINES_STORAGE_KEY = '@cadence/routines/v1';
+const ONBOARDING_STORAGE_KEY = '@cadence/onboarding/v1';
+
+// A coach-mark target key — one per real UI element the guided tour can
+// point at. Shared between AppState's ref registry and whichever component
+// owns that element, so the string isn't duplicated loosely at each call site.
+export type CoachTargetKey = 'fabAdd' | 'navWeek' | 'headerAnalytics';
 
 function isDayKey(v: unknown): v is DayKey {
   return typeof v === 'string' && (DAY_KEYS as string[]).includes(v);
@@ -191,7 +198,7 @@ function effectiveOrder(r: Routine, iso: string): number {
   return r.dayOrder[iso] ?? r.order;
 }
 
-function makeRoutineInstance(r: Routine, iso: string): RoutineInstance {
+function makeRoutineInstance(r: Routine, iso: string, retroactive: boolean): RoutineInstance {
   return {
     id: `${r.id}::${iso}`,
     title: r.title,
@@ -200,6 +207,7 @@ function makeRoutineInstance(r: Routine, iso: string): RoutineInstance {
     isRoutine: true,
     timesPerWeek: r.timesPerWeek,
     order: effectiveOrder(r, iso),
+    retroactive,
   };
 }
 
@@ -312,6 +320,20 @@ type AppStateValue = {
   confirmRoutineEdit: (title: string) => void;
   confirmMoveRoutineDay: () => void;
   closeSheet: () => void;
+
+  // onboarding: a one-time intro (full-screen slides) followed by a short
+  // coach-mark tour, gated on their own persisted flags (see docs/PROJECT.md)
+  hasHydratedOnboarding: boolean;
+  seenIntro: boolean;
+  seenCoachmarks: boolean;
+  completeIntro: () => void;
+  completeCoachmarks: () => void;
+  replayTutorial: () => void;
+  // Lets a target element (the FAB, a nav tab, a header icon) register
+  // itself so the coach-mark overlay can measure its on-screen position —
+  // refs, not state, since registering one shouldn't trigger a re-render.
+  registerCoachTarget: (key: CoachTargetKey, node: View | null) => void;
+  measureCoachTarget: (key: CoachTargetKey) => Promise<{ x: number; y: number; width: number; height: number } | null>;
 };
 
 const AppStateContext = createContext<AppStateValue | undefined>(undefined);
@@ -333,6 +355,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const todayWeekId = useMemo(() => isoDate(todayWeekStartRef.current), []);
   const todayDayKey = useMemo(() => dayKeyOf(todayRef.current), []);
   const todayWeekDays = useMemo(() => getWeekDayInfos(todayWeekStartRef.current), []);
+  // Passed to daysForWeek() wherever a result should include this week's
+  // *retroactive* days (see data/schedule.ts) — stable for the session,
+  // like todayIso/todayWeekId themselves.
+  const todayContext = useMemo(() => ({ iso: todayIso, weekId: todayWeekId }), [todayIso, todayWeekId]);
 
   useEffect(() => {
     let active = true;
@@ -378,6 +404,66 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     void AsyncStorage.setItem(ROUTINES_STORAGE_KEY, JSON.stringify(routines)).catch(() => {});
   }, [hasHydratedRoutines, routines]);
 
+  // Onboarding: both flags default to `false` (never seen) until hydration
+  // confirms otherwise, and nothing that reads them is allowed to render
+  // before `hasHydratedOnboarding` flips true — see IntroSlides' own gate —
+  // so a returning user never sees a one-frame flash of the intro.
+  const [seenIntro, setSeenIntro] = useState(false);
+  const [seenCoachmarks, setSeenCoachmarks] = useState(false);
+  const [hasHydratedOnboarding, setHasHydratedOnboarding] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const hydrateOnboarding = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(ONBOARDING_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as Record<string, unknown>;
+          if (active) {
+            if (typeof parsed.seenIntro === 'boolean') setSeenIntro(parsed.seenIntro);
+            if (typeof parsed.seenCoachmarks === 'boolean') setSeenCoachmarks(parsed.seenCoachmarks);
+          }
+        }
+      } catch {
+        // Invalid or unavailable storage should never prevent the app from opening.
+      } finally {
+        if (active) setHasHydratedOnboarding(true);
+      }
+    };
+
+    void hydrateOnboarding();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasHydratedOnboarding) return;
+    void AsyncStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ seenIntro, seenCoachmarks })).catch(() => {});
+  }, [hasHydratedOnboarding, seenIntro, seenCoachmarks]);
+
+  const completeIntro = useCallback(() => setSeenIntro(true), []);
+  const completeCoachmarks = useCallback(() => setSeenCoachmarks(true), []);
+
+  // A ref registry, not state — a target registering/unregistering itself
+  // (e.g. on mount/unmount) shouldn't trigger a re-render of everything that
+  // reads AppState. `measureCoachTarget` resolves `null` for an unregistered
+  // key so the coach-mark overlay can skip a step gracefully instead of
+  // crashing if a target hasn't mounted yet.
+  const coachTargets = useRef<Map<CoachTargetKey, View | null>>(new Map());
+  const registerCoachTarget = useCallback((key: CoachTargetKey, node: View | null) => {
+    if (node) coachTargets.current.set(key, node);
+    else coachTargets.current.delete(key);
+  }, []);
+  const measureCoachTarget = useCallback((key: CoachTargetKey) => {
+    const node = coachTargets.current.get(key);
+    if (!node) return Promise.resolve(null);
+    return new Promise<{ x: number; y: number; width: number; height: number } | null>((resolve) => {
+      node.measureInWindow((x, y, width, height) => resolve({ x, y, width, height }));
+    });
+  }, []);
+
   const [activeScreen, setActiveScreen] = useState<ScreenName>('today');
   const [previousScreen, setPreviousScreen] = useState<ScreenName>('today');
   const [currentDay, setCurrentDay] = useState<DayKey>(todayDayKey);
@@ -418,19 +504,19 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     (wId: string, dayKey: DayKey): RoutineInstance[] => {
       const iso = isoDate(addDays(parseISODate(wId), DAY_KEYS.indexOf(dayKey)));
       return routines
-        .filter((r) => daysForWeek(r, wId).includes(dayKey))
-        .map((r) => makeRoutineInstance(r, iso))
+        .filter((r) => daysForWeek(r, wId, todayContext).includes(dayKey))
+        .map((r) => makeRoutineInstance(r, iso, isRetroactiveDay(r, wId, dayKey, todayContext)))
         // Always in the routines' own arranged order (drag-reorderable on
         // Today) — independent of completion state, so finishing a task
         // never shuffles the list.
         .sort((a, b) => a.order - b.order);
     },
-    [routines],
+    [routines, todayContext],
   );
 
   const pendingRoutines = useCallback(
-    (wId: string) => routines.filter((r) => daysForWeek(r, wId).length < r.timesPerWeek),
-    [routines],
+    (wId: string) => routines.filter((r) => daysForWeek(r, wId, todayContext).length < r.timesPerWeek),
+    [routines, todayContext],
   );
 
   const showScreen = useCallback(
@@ -441,6 +527,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     },
     [todayDayKey],
   );
+
+  // Resets onboarding to its just-installed state and lands on Today — the
+  // tour's one valid screen — so "replay" behaves exactly like first launch,
+  // whichever screen it was triggered from (in practice, Settings).
+  const replayTutorial = useCallback(() => {
+    setSeenIntro(false);
+    setSeenCoachmarks(false);
+    showScreen('today');
+  }, [showScreen]);
 
   const selectDay = useCallback((key: DayKey) => {
     setCurrentDay((prev) => {
@@ -515,21 +610,35 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   // is shared by the Week screen's day popup and the Today screen's quick
   // add) — always writes an explicit override for that one week, and never
   // touches the routine's default template.
+  //
+  // A past day is a real historical record — adding to one is always
+  // blocked (manual retroactive scheduling only ever happens by editing or
+  // creating a routine's regular days, never by hand-picking a past day
+  // here — see data/schedule.ts's isRetroactiveDay). Removing from a past
+  // day is only allowed when it's retroactive in that sense; a genuinely
+  // real pre-existing entry stays a no-op, since removing it would erase
+  // actual history. See docs/DECISIONS.md.
   const toggleRoutineForWeekDay = useCallback(
     (routineId: number, wId: string, day: DayKey) => {
-      // A day that's already passed is a read-only record — see docs/DECISIONS.md.
-      if (isoForWeekDay(wId, day) < todayIso) return;
+      const iso = isoForWeekDay(wId, day);
+      const isPast = iso < todayIso;
       setRoutines((prev) =>
         prev.map((r) => {
           if (r.id !== routineId) return r;
-          const current = daysForWeek(r, wId);
+          const current = daysForWeek(r, wId, todayContext);
           const included = current.includes(day);
-          const days = included ? current.filter((d) => d !== day) : [...current, day];
+          if (included) {
+            if (isPast && !isRetroactiveDay(r, wId, day, todayContext)) return r; // real history — protected
+            const days = current.filter((d) => d !== day);
+            return { ...r, schedule: { ...r.schedule, [wId]: days } };
+          }
+          if (isPast) return r; // no manual add to a past day, ever
+          const days = [...current, day];
           return { ...r, schedule: { ...r.schedule, [wId]: days } };
         }),
       );
     },
-    [todayIso],
+    [todayIso, todayContext],
   );
 
   const deleteRoutine = useCallback((id: number) => {
@@ -613,20 +722,22 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const menuRemoveRoutineDay = useCallback(
     (id: string) => {
       const [ridStr, iso] = id.split('::');
-      if (iso < todayIso) return;
       const wId = weekIdFor(parseISODate(iso));
       const day = dayKeyOf(parseISODate(iso));
       setRoutines((prev) =>
         prev.map((r) => {
           if (String(r.id) !== ridStr) return r;
-          const days = daysForWeek(r, wId).filter((d) => d !== day);
+          // Same retroactive-aware protection as toggleRoutineForWeekDay —
+          // a real past entry can't be removed this way either.
+          if (iso < todayIso && !isRetroactiveDay(r, wId, day, todayContext)) return r;
+          const days = daysForWeek(r, wId, todayContext).filter((d) => d !== day);
           const doneDates = { ...r.doneDates };
           delete doneDates[iso];
           return { ...r, schedule: { ...r.schedule, [wId]: days }, doneDates };
         }),
       );
     },
-    [todayIso],
+    [todayIso, todayContext],
   );
 
   const changeFreq = useCallback((delta: number) => {
@@ -669,29 +780,28 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setSheetRoutineId(id);
       const r = routines.find((r) => r.id === id);
       if (r) {
-        setSheetMultiDays([...daysForWeek(r, weekId)]);
+        setSheetMultiDays([...daysForWeek(r, weekId, todayContext)]);
         setSheetMultiMax(r.timesPerWeek);
       }
       setSheetOpen(true);
     },
-    [routines, weekId],
+    [routines, weekId, todayContext],
   );
 
   const applyUsualDaysToPlan = useCallback(() => {
     const r = routines.find((r) => r.id === sheetRoutineId);
     if (!r) return;
-    // Past days already in the picker are locked commitments (the picker
-    // itself never lets them be toggled) — "usual days" only resets the
-    // still-choosable, today-or-later portion to match the routine's
-    // template, filling in around whatever the past already has, rather
-    // than overwriting it.
-    setSheetMultiDays((prev) => {
-      const lockedPast = prev.filter((d) => isoForWeekDay(weekId, d) < todayIso);
-      const usualUpcoming = r.defaultDays.filter(
-        (d) => isoForWeekDay(weekId, d) >= todayIso && !lockedPast.includes(d),
-      );
-      const room = Math.max(0, sheetMultiMaxRef.current - lockedPast.length);
-      return [...lockedPast, ...usualUpcoming.slice(0, room)];
+    // A real (non-retroactive) past day already in the picker is a locked
+    // commitment (the picker itself never lets it be toggled off) — "usual
+    // days" protects those first, then fills the rest from the routine's
+    // template as-is. A past day in the template is legitimately pickable
+    // now (it becomes a retroactive instance), so unlike before, it's no
+    // longer skipped here.
+    setSheetMultiDays(() => {
+      const realPast = daysForWeek(r, weekId).filter((d) => isoForWeekDay(weekId, d) < todayIso);
+      const usual = r.defaultDays.filter((d) => !realPast.includes(d));
+      const room = Math.max(0, sheetMultiMaxRef.current - realPast.length);
+      return [...realPast, ...usual.slice(0, room)];
     });
   }, [routines, sheetRoutineId, weekId, todayIso]);
 
@@ -777,18 +887,27 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       closeSheet();
       return;
     }
-    // No past-day filtering here: the picker itself never lets a past day
-    // be toggled (see useRoutinePlanContent), so sheetMultiDays' past-day
-    // membership only ever reflects what was already committed for this
-    // week when the sheet opened (or preserved by applyUsualDaysToPlan) —
-    // filtering it here would silently un-schedule an already-past day
-    // that the picker showed as locked-in, which is exactly what past-day
-    // locking is supposed to prevent.
+    // The day picker (useRoutinePlanContent) only ever lets a past day be
+    // toggled *off* (never freshly picked — see disabled there), so the
+    // picker's own selection can be trusted for everything except: force-
+    // keep any real (non-retroactive) past day regardless of what the
+    // picker shows, protecting history the same way toggleRoutineForWeekDay
+    // does. daysForWeek() here is the 2-arg, pure-historical call —
+    // deliberately not today-aware, since it's answering "was this day
+    // already real" rather than "what should show".
     setRoutines((prev) =>
-      prev.map((r) => (r.id === sheetRoutineId ? { ...r, schedule: { ...r.schedule, [weekId]: sheetMultiDays } } : r)),
+      prev.map((r) => {
+        if (r.id !== sheetRoutineId) return r;
+        const historical = daysForWeek(r, weekId);
+        const days = [...sheetMultiDays];
+        for (const day of historical) {
+          if (isoForWeekDay(weekId, day) < todayIso && !days.includes(day)) days.push(day);
+        }
+        return { ...r, schedule: { ...r.schedule, [weekId]: days } };
+      }),
     );
     closeSheet();
-  }, [sheetRoutineId, sheetMultiDays, weekId, closeSheet]);
+  }, [sheetRoutineId, sheetMultiDays, weekId, todayIso, closeSheet]);
 
   const confirmRoutineEdit = useCallback(
     (title: string) => {
@@ -833,17 +952,25 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     const toDay = sheetPickedDay;
     const wId = weekIdFor(parseISODate(fromIso));
     const toIso = isoDate(addDays(parseISODate(wId), DAY_KEYS.indexOf(toDay)));
-    // Neither the day being moved from nor the day it's moving to may be in
-    // the past — moving away from a past day would erase its record, and
-    // moving into one would rewrite it.
-    if (fromIso < todayIso || toIso < todayIso) {
+    // The day it's moving to may never be in the past — moving into one
+    // would rewrite it. The day being moved *from* may be in the past only
+    // if it's retroactive (see data/schedule.ts) — moving away from a real
+    // past day would erase its record.
+    if (toIso < todayIso) {
       closeSheet();
       return;
+    }
+    if (fromIso < todayIso) {
+      const r = routines.find((r) => r.id === sheetRoutineId);
+      if (!r || !sheetRoutineFromDay || !isRetroactiveDay(r, wId, sheetRoutineFromDay, todayContext)) {
+        closeSheet();
+        return;
+      }
     }
     setRoutines((prev) =>
       prev.map((r) => {
         if (r.id !== sheetRoutineId) return r;
-        const current = daysForWeek(r, wId);
+        const current = daysForWeek(r, wId, todayContext);
         let days = sheetRoutineFromDay ? current.filter((d) => d !== sheetRoutineFromDay) : current;
         if (!days.includes(toDay)) days = [...days, toDay];
         const doneVal = r.doneDates[fromIso] || false;
@@ -854,7 +981,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       }),
     );
     closeSheet();
-  }, [sheetPickedDay, sheetRoutineFromIso, sheetRoutineFromDay, sheetRoutineId, todayIso, closeSheet]);
+  }, [sheetPickedDay, sheetRoutineFromIso, sheetRoutineFromDay, sheetRoutineId, routines, todayIso, todayContext, closeSheet]);
 
   const value = useMemo<AppStateValue>(
     () => ({
@@ -934,6 +1061,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       confirmRoutineEdit,
       confirmMoveRoutineDay,
       closeSheet,
+      hasHydratedOnboarding,
+      seenIntro,
+      seenCoachmarks,
+      completeIntro,
+      completeCoachmarks,
+      replayTutorial,
+      registerCoachTarget,
+      measureCoachTarget,
     }),
     [
       routines,
@@ -1012,6 +1147,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       confirmRoutineEdit,
       confirmMoveRoutineDay,
       closeSheet,
+      hasHydratedOnboarding,
+      seenIntro,
+      seenCoachmarks,
+      completeIntro,
+      completeCoachmarks,
+      replayTutorial,
+      registerCoachTarget,
+      measureCoachTarget,
     ],
   );
 

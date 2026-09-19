@@ -227,39 +227,64 @@ so Android can finish the activity normally.
 
 ---
 
-**Decision:** Every real date strictly before `todayIso` is read-only —
-`AppState` rejects `toggleDone`, `toggleRoutineForWeekDay`,
-`reorderRoutinesForDay`, and `menuRemoveRoutineDay` for a past date, and
-`confirmMoveRoutineDay` rejects a move whose source or destination is past
-— regardless of which UI path calls them. Today itself is never locked.
+**Decision:** Every real date strictly before `todayIso` blocks `toggleDone`,
+`reorderRoutinesForDay` unconditionally, `confirmMoveRoutineDay` rejects a
+past *destination* outright, and manually adding a routine to a past day
+(`toggleRoutineForWeekDay`'s add branch) is always blocked, regardless of
+which UI path calls them. The one carve-out: a past day *can* show a
+routine it never had, and that specific instance can be removed or moved
+(`confirmMoveRoutineDay`'s past-*source* guard, `menuRemoveRoutineDay`), but
+only when it's *retroactive* — `data/schedule.ts`'s `isRetroactiveDay()`,
+true when the day is past, in the routine's current `defaultDays`, but the
+routine's edit history says it wasn't there before. This status is
+computed, not stored: no field on `Routine` tracks it.
 
-**Reason:** Explicit product requirement — being able to add, remove, or
-check off a routine on an already-passed day defeats the point of a routine
-tracker (you could retroactively "complete" days to fake a streak), and the
-Week screen's `goToPrevWeek` has no lower bound, so every past week was
-reachable and, before this, fully editable.
+**Reason:** Two revisions to find this. The original version rejected any
+mutation of a past date outright. That version's replacement let a user
+manually add a routine to an arbitrary past day by hand (a stored
+`Routine.placeholderDates` map), on the reasoning that someone should be
+able to log something onto a past day after the fact without it faking
+progress — but that wasn't actually the need: the real gap was that
+creating a routine, or editing one's regular days, with a day already past
+this week, silently excluded that day (via `createdIso`/`defaultDaysHistory`)
+instead of showing it. Manual per-day adding was the wrong mechanism for
+that and is gone; the schedule/creation flow itself now produces the
+retroactive instance automatically, with the same non-completable,
+analytics-excluded, still-removable shape the placeholder had. The Week
+screen's `goToPrevWeek` has no lower bound, so every past week is
+reachable — `isRetroactiveDay` takes the real current week explicitly
+(never whatever week is being browsed) so this can never leak into a
+genuinely past week no matter which UI path calls it.
 
-**Consequence:** Guard any new day-specific mutation in `AppState` the same
-way (compare the date involved to `todayIso`) rather than relying on the UI
-alone to prevent it — the state layer is the source of truth, the UI (dimmed
-checkboxes, hidden add/remove buttons, `DraggableTaskList`'s `locked` prop,
-`TaskMenu` hiding "Switch day"/"Remove this day") only has to make that
-already-enforced read-only state legible. See `docs/PROJECT.md`'s "Past-day
-locking" section for the full guard list.
+**Why `isRetroactiveDay` never looks at `routine.schedule`:** any toggle
+already always freezes a week into an explicit `schedule[weekId]` override
+(pre-existing behavior). If retroactive status were read from that override,
+removing *one* retroactive day from a week with two would silently turn the
+other one "real" afterward — the override can't tell "was this real or
+retroactive in origin" apart once it exists, since it's just a flat list of
+day keys. Deriving retroactive status purely from the routine's *template*
+(`defaultDays`/`defaultDaysHistory`/`createdIso`) instead keeps each day's
+status stable no matter how many other edits touch that week's override.
 
-**`confirmRoutinePlan` is the one exception, deliberately: it does *not*
-filter past days out of `sheetMultiDays` before saving.** That filter was
-tried and is a bug, not a safety net — `useRoutinePlanContent`'s day-row
-picker already disables every past day unconditionally (whether picked or
-not), so a past day's presence in `sheetMultiDays` only ever reflects what
-`openRoutinePlanner` loaded from the routine's actual already-committed
-schedule for that week (`applyUsualDaysToPlan` preserves it too, the same
-way). Filtering "past days" out at save time doesn't add safety — it
-silently un-schedules a real, already-locked commitment the moment the
-sheet is saved for any other reason, which is exactly what this decision
-exists to prevent. Don't re-add that filter; if a new way to reach this
-sheet is added, make sure it also pre-populates `sheetMultiDays` from the
-real committed schedule rather than reintroducing save-time filtering.
+**Consequence:** Guard any new day-specific mutation in `AppState` first —
+decide whether it's always-blocked for a past date (like `toggleDone`) or
+retroactive-aware (like `toggleRoutineForWeekDay`) — rather than relying on
+the UI alone; the state layer is the source of truth. See
+`docs/PROJECT.md`'s "Past days: real history vs. retroactive scheduling"
+for the full guard list and the UI side of this. Don't reintroduce a manual
+"add to any past day" affordance, and don't make `isRetroactiveDay` consult
+`routine.schedule` — both were tried and both are the specific mistakes
+this decision exists to avoid.
+
+**`confirmRoutinePlan` still does *not* naively filter past days out of
+`sheetMultiDays` before saving — that filter was tried once and was a bug,
+not a safety net.** It force-keeps only *real* past days (2-arg, pure-
+historical `daysForWeek`) regardless of what the picker sent; everything
+else in the picker's selection is trusted, since `useRoutinePlanContent`'s
+day rows only ever let a past day be toggled *off*, never freshly picked
+(`sheet/RoutinePlanDayRow.tsx`'s `disabled` prop). Don't go back to
+filtering "past days" out wholesale at save time — that's what silently
+un-scheduled real, already-locked commitments before.
 
 ---
 
@@ -313,3 +338,48 @@ browser.
 exist — check before relying on them. Android-only rendering behavior
 (status bar color, overscroll glow, font-metrics alignment) cannot be
 verified through a web build; say so rather than claiming it was checked.
+
+---
+
+**Decision:** The onboarding coach-mark tour's spotlight "hole" is a
+`react-native-svg` `Mask` with its cut-out `Rect`'s `x/y/width/height`
+animated via `Animated.createAnimatedComponent(Rect)` — not a new animation
+dependency, and not four separate dimming rectangles hand-positioned around
+the hole.
+
+**Reason:** The project deliberately has no `react-native-reanimated`,
+gesture-handler, or Lottie — everything animated is built from core RN's
+`Animated` plus `react-native-svg` (already a dependency, already how every
+icon in `src/icons/Icons.tsx` is drawn), and AGENTS.md says not to add a
+dependency without justification. An SVG luminance mask is the standard,
+well-supported way to get a real rounded-rect spotlight cutout from what's
+already installed. The one real constraint it comes with — animating raw
+`x/y/width/height` attributes needs `useNativeDriver: false`, since the
+native driver only understands `transform`/`opacity` — already has direct
+precedent in this codebase: `NavBar.tsx`'s sliding tab indicator animates
+`translateX`/`width` the same JS-driven way, for the same reason.
+
+**Consequence:** Don't reach for a four-rectangle hand-rolled cutout (no
+rounded corners, more layout math) or a new dependency for this — the mask
+approach is already proven at `src/components/onboarding/CoachMarkOverlay.tsx`.
+If a future spotlight-style UI needs the same trick, reuse that pattern.
+
+---
+
+**Decision:** The coach-mark tour ends itself (calls `completeCoachmarks()`,
+marking it permanently seen) if it's torn down for *any* reason — not just
+an explicit "Got it"/"Skip tour" tap, but also being unmounted because the
+user navigated off Today mid-tour — rather than pausing and trying to
+resume, or re-anchoring its steps to a different screen.
+
+**Reason:** It's a 3-step tour meant to run once, immediately, on the one
+screen (Today) all three of its targets live on. A general resume/re-anchor
+system for an arbitrary interruption is real complexity this doesn't need —
+if someone genuinely navigates away mid-tour, the simplest correct behavior
+is "the tour is over," not "the tour is still owed to them later."
+
+**Consequence:** `CoachMarkOverlay`'s finish path is guarded by a single
+`finishedRef` checked both in the explicit-finish handler and in the
+mount effect's unmount cleanup, so `completeCoachmarks()` fires exactly
+once regardless of which path triggers it. Don't add a "resume where it
+left off" mode without deciding this trade-off again on purpose.

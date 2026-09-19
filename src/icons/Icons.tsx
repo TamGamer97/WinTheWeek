@@ -220,3 +220,20 @@ export function PlusMinusEmptyIcon({ size = 18, color = '#3860E8' }: IconProps) 
     </Svg>
   );
 }
+
+// A circled question mark — Settings' "Replay tutorial" row.
+export function HelpCircleIcon({ size = 18, color = '#12141C' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Circle cx={12} cy={12} r={9.2} stroke={color} strokeWidth={1.6} />
+      <Path
+        d="M9.6 9.4a2.4 2.4 0 1 1 3.5 2.1c-.7.4-1.1.9-1.1 1.7v.4"
+        stroke={color}
+        strokeWidth={1.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Circle cx={12} cy={16.9} r={1.05} fill={color} />
+    </Svg>
+  );
+}

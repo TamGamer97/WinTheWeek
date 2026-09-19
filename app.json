@@ -19,17 +19,22 @@
     "android": {
       "versionCode": 1,
       "backgroundColor": "#FDFCFB",
+      "icon": "./assets/icon.png",
       "adaptiveIcon": {
-        "backgroundColor": "#0B0C0F",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/android-adaptive-foreground.png",
+        "backgroundColor": "#0A2543"
       },
       "softwareKeyboardLayoutMode": "pan",
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.tamimshuhel.wintheweek"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "2ce40f26-692d-4db7-9cc5-2a32adfb4a2d"
+      }
     }
   }
 }

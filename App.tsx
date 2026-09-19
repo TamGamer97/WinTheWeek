@@ -26,6 +26,8 @@ import NavBar from './src/components/NavBar';
 import TaskMenu from './src/components/TaskMenu';
 import BottomSheet from './src/components/BottomSheet';
 import ConfirmDialog from './src/components/ConfirmDialog';
+import IntroSlides from './src/components/onboarding/IntroSlides';
+import CoachMarkOverlay from './src/components/onboarding/CoachMarkOverlay';
 
 // expo-system-ui's own docs say to call this "outside of your component" —
 // i.e. once, as soon as the JS bundle evaluates, not only from an effect —
@@ -82,9 +84,16 @@ function AppShell() {
     menuItemId,
     previousScreen,
     sheetOpen,
+    hasHydratedOnboarding,
+    seenIntro,
+    seenCoachmarks,
   } = useAppState();
   const insets = useSafeAreaInsets();
   const showChrome = activeScreen !== 'settings' && activeScreen !== 'analytics';
+  // The guided tour only ever runs right after the intro, on Today (its one
+  // valid screen — see docs/PROJECT.md) — never re-eligible once seen, and
+  // never shown before onboarding hydration confirms it's actually unseen.
+  const coachmarksActive = hasHydratedOnboarding && seenIntro && !seenCoachmarks && activeScreen === 'today';
   const statusBarHeight = Math.max(insets.top, NativeStatusBar.currentHeight ?? 0);
 
   useEffect(() => {
@@ -172,6 +181,8 @@ function AppShell() {
       <TaskMenu />
       <BottomSheet />
       <ConfirmDialog />
+      {coachmarksActive && <CoachMarkOverlay />}
+      <IntroSlides />
     </View>
   );
 }

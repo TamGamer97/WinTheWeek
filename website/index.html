@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Win The Week: a calmer way to plan your routines</title>
+<meta name="description" content="Win The Week turns your recurring goals into a simple, color-coded weekly plan. See the whole week at a glance, then check off today without the clutter.">
+<link rel="icon" type="image/png" href="assets/app-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+
+<header class="site-header" id="top">
+  <div class="wrap header-row">
+    <a class="brand" href="#top">
+      <img src="assets/app-icon.png" alt="" class="brand-mark">
+      <span class="brand-word">Win The Week</span>
+    </a>
+
+    <nav class="main-nav" id="main-nav">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#screens">Screens</a>
+      <a href="#download" class="nav-cta">Get the app</a>
+    </nav>
+
+    <div class="header-actions">
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode">
+        <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4.5" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2.5M12 19v2.5M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2.5 12H5M19 12h2.5M4.2 19.8L6 18M18 6l1.8-1.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M20.2 14.6A8.6 8.6 0 1 1 9.4 3.8a7 7 0 0 0 10.8 10.8Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="hamburger" id="hamburger" type="button" aria-label="Open menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+  <div class="mobile-nav" id="mobile-nav">
+    <a href="#features">Features</a>
+    <a href="#how">How it works</a>
+    <a href="#screens">Screens</a>
+    <a href="#download">Get the app</a>
+  </div>
+</header>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap hero-row">
+      <div class="hero-copy reveal">
+        <p class="eyebrow">For iPhone &amp; Android</p>
+        <h1>Win the week,<br>one day at a time.</h1>
+        <p class="hero-sub">
+          Turn your recurring goals into a simple, color-coded plan. See the
+          whole week on one screen, then open Today for a focused checklist
+          of exactly what's due. Nothing else.
+        </p>
+        <div class="hero-ctas">
+          <a href="#download" class="store-badge" data-store="apple">
+            <svg width="20" height="20" viewBox="0 0 384 512" fill="currentColor"><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141 0 184.8 0 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-57.7-90-57.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/></svg>
+            <span>
+              <small>Coming soon on the</small>
+              App Store
+            </span>
+          </a>
+          <a href="#download" class="store-badge" data-store="google">
+            <svg width="20" height="20" viewBox="0 0 512 512" fill="currentColor"><path d="M325.3 234.3L104.6 13l280.8 161.2-60.1 60.1zM47 0C34 6.8 25.3 19.2 25.3 35.3v441.3c0 16.1 8.7 28.5 21.7 35.3l256.6-256L47 0zm425.2 225.6l-58.9-34.1-65.7 64.5 65.7 64.5 60.1-34.1c18-14.3 18-46.5-1.2-60.8zM104.6 499l280.8-161.2-60.1-60.1L104.6 499z"/></svg>
+            <span>
+              <small>Coming soon on</small>
+              Google Play
+            </span>
+          </a>
+        </div>
+        <p class="hero-note">No account. No cloud. Your plan stays on your device.</p>
+      </div>
+
+      <div class="hero-visual reveal" id="hero-visual">
+        <div class="phone phone-back">
+          <img data-light="assets/screenshots/week-light.png" data-dark="assets/screenshots/week-dark.png" src="assets/screenshots/week-light.png" alt="Win The Week app showing a full week of color-coded routines">
+        </div>
+        <div class="phone phone-front">
+          <img data-light="assets/screenshots/today-light.png" data-dark="assets/screenshots/today-dark.png" src="assets/screenshots/today-light.png" alt="Win The Week app showing today's checklist with a progress bar">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LOGIC STRIP -->
+  <section class="strip">
+    <div class="wrap strip-row reveal">
+      <p class="strip-line">
+        <span class="strip-dot dot-blue"></span>Two views of one plan
+        <span class="strip-sep">&middot;</span>
+        <span class="strip-dot dot-violet"></span>Six colors per week
+        <span class="strip-sep">&middot;</span>
+        <span class="strip-dot dot-green"></span>Zero accounts, ever
+      </p>
+    </div>
+  </section>
+
+  <!-- FEATURE ROWS -->
+  <section id="features" class="feature-rows">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <p class="eyebrow">Features</p>
+        <h2>Built around how a week actually goes.</h2>
+      </div>
+
+      <div class="feature-row reveal">
+        <div class="feature-visual">
+          <div class="phone-frame">
+            <img data-light="assets/screenshots/week-light.png" data-dark="assets/screenshots/week-dark.png" src="assets/screenshots/week-light.png" alt="The Week screen, showing seven days with routines and an unscheduled group">
+          </div>
+        </div>
+        <div class="feature-copy">
+          <span class="feature-icon feature-icon-blue">
+            <svg width="34" height="34" viewBox="0 0 48 48" fill="currentColor"><rect x="8" y="14" width="32" height="28" rx="9"/><rect x="15" y="8" width="6" height="12" rx="3"/><rect x="27" y="8" width="6" height="12" rx="3"/></svg>
+          </span>
+          <h3>See the whole week</h3>
+          <p>
+            Browse any week and see exactly which routines land on which
+            day. Routines you haven't planned yet get called out in their
+            own group, so nothing quietly slips off your radar.
+          </p>
+        </div>
+      </div>
+
+      <div class="feature-row feature-row-reverse reveal">
+        <div class="feature-visual">
+          <div class="phone-frame">
+            <img data-light="assets/screenshots/today-light.png" data-dark="assets/screenshots/today-dark.png" src="assets/screenshots/today-light.png" alt="The Today screen, showing a checklist and progress bar for the current day">
+          </div>
+        </div>
+        <div class="feature-copy">
+          <span class="feature-icon feature-icon-green">
+            <svg width="34" height="34" viewBox="0 0 48 48" fill="currentColor"><rect x="8" y="14" width="32" height="28" rx="9"/><rect x="15" y="8" width="6" height="12" rx="3"/><rect x="27" y="8" width="6" height="12" rx="3"/></svg>
+          </span>
+          <h3>Today, without the noise</h3>
+          <p>
+            Open Today for a single, focused list pulled straight from your
+            routines. Nothing from other days, nothing you can't act on
+            right now. Check things off, watch the progress bar fill, and
+            long&#8209;press to drag tasks into the order you'll actually do them.
+          </p>
+        </div>
+      </div>
+
+      <div class="feature-row reveal">
+        <div class="feature-visual">
+          <div class="phone-frame">
+            <img data-light="assets/screenshots/add-routine-light.png" data-dark="assets/screenshots/add-routine-dark.png" src="assets/screenshots/add-routine-light.png" alt="Adding a new routine, choosing a color and how many times a week">
+          </div>
+        </div>
+        <div class="feature-copy">
+          <span class="feature-icon feature-icon-violet">
+            <svg width="34" height="34" viewBox="0 0 48 48" fill="currentColor"><rect x="8" y="14" width="32" height="28" rx="9"/><rect x="15" y="8" width="6" height="12" rx="3"/><rect x="27" y="8" width="6" height="12" rx="3"/></svg>
+          </span>
+          <h3>Color that means something</h3>
+          <p>
+            Give every routine its own color and frequency: three times a
+            week, every weekday, whatever fits. Across a full week those
+            colors turn into a pattern you can read at a glance, instead of
+            a wall of identical to-dos.
+          </p>
+        </div>
+      </div>
+
+      <div class="feature-row feature-row-reverse reveal">
+        <div class="feature-visual">
+          <div class="phone-frame">
+            <img data-light="assets/screenshots/manage-routines-light.png" data-dark="assets/screenshots/manage-routines-dark.png" src="assets/screenshots/manage-routines-light.png" alt="Managing routines, editing color, frequency and days, or removing one">
+          </div>
+        </div>
+        <div class="feature-copy">
+          <span class="feature-icon feature-icon-pink">
+            <svg width="34" height="34" viewBox="0 0 48 48" fill="currentColor"><rect x="8" y="14" width="32" height="28" rx="9"/><rect x="15" y="8" width="6" height="12" rx="3"/><rect x="27" y="8" width="6" height="12" rx="3"/></svg>
+          </span>
+          <h3>Routines that flex with you</h3>
+          <p>
+            Life reshuffles itself constantly. Edit a routine's color,
+            frequency or default days any time, or plan one week
+            differently without touching next week's rhythm.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURE LIST -->
+  <section class="grid-section">
+    <div class="wrap">
+      <div class="feature-list">
+        <div class="feature-item dot-blue reveal">
+          <div class="feature-item-text">
+            <h4>Light &amp; dark, built in</h4>
+            <p>Bright in the morning, dark after sunset, or whatever you last tapped. It's one switch away in Settings, or try the toggle up top.</p>
+          </div>
+          <span class="feature-item-ring" aria-hidden="true"></span>
+        </div>
+        <div class="feature-item dot-amber reveal">
+          <div class="feature-item-text">
+            <h4>Drag to reorder</h4>
+            <p>Long-press any task on Today and drag it into the order you'll actually tackle it.</p>
+          </div>
+          <span class="feature-item-ring" aria-hidden="true"></span>
+        </div>
+        <div class="feature-item dot-violet reveal">
+          <div class="feature-item-text">
+            <h4>Plan week by week</h4>
+            <p>Keep a default rhythm, or override just this week when the schedule needs to bend.</p>
+          </div>
+          <span class="feature-item-ring" aria-hidden="true"></span>
+        </div>
+        <div class="feature-item dot-red reveal">
+          <div class="feature-item-text">
+            <h4>One gentle reminder</h4>
+            <p>A single daily nudge to check today's plan, if you want it at all. Turn it off in Settings and it won't ask twice.</p>
+          </div>
+          <span class="feature-item-ring" aria-hidden="true"></span>
+        </div>
+        <div class="feature-item dot-pink reveal">
+          <div class="feature-item-text">
+            <h4>Nothing forgotten</h4>
+            <p>Unscheduled routines get their own group at the top of the week, waiting to be placed.</p>
+          </div>
+          <span class="feature-item-ring" aria-hidden="true"></span>
+        </div>
+        <div class="feature-item dot-green reveal">
+          <div class="feature-item-text">
+            <h4>Private by default</h4>
+            <p>No sign-up, no server, no tracking. Routines are written straight to your phone's storage and stay there.</p>
+          </div>
+          <span class="feature-item-ring" aria-hidden="true"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section id="how" class="how">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <p class="eyebrow">How it works</p>
+        <h2>Three steps. That's the whole system.</h2>
+      </div>
+
+      <div class="steps">
+        <div class="step reveal">
+          <div class="step-num">01</div>
+          <h3>Add a routine</h3>
+          <p>Give it a name, a color, and a frequency. "Gym, 3&times; a week." "Journal, every day." Whatever you're actually trying to do.</p>
+        </div>
+        <div class="step reveal">
+          <div class="step-num">02</div>
+          <h3>Set the days</h3>
+          <p>Give it a default rhythm, or leave it unscheduled and place it into the week whenever it fits.</p>
+        </div>
+        <div class="step reveal">
+          <div class="step-num">03</div>
+          <h3>Check off today</h3>
+          <p>Open Today, see only what's due right now, and check it off as you go. That's it.</p>
+        </div>
+      </div>
+      <p class="steps-loop">Repeat weekly. Adjust whenever life does.</p>
+    </div>
+  </section>
+
+  <!-- SCREENS SHOWCASE -->
+  <section id="screens" class="showcase">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <p class="eyebrow">A closer look</p>
+        <h2>Every screen, tuned twice: once for day, once for night.</h2>
+        <p class="section-sub">Try the toggle in the header, or the switch below.</p>
+      </div>
+    </div>
+
+    <div class="showcase-strip reveal">
+      <div class="showcase-track" id="showcase-track">
+        <div class="showcase-phone"><img data-light="assets/screenshots/week-light.png" data-dark="assets/screenshots/week-dark.png" src="assets/screenshots/week-light.png" alt="Week screen"></div>
+        <div class="showcase-phone"><img data-light="assets/screenshots/today-light.png" data-dark="assets/screenshots/today-dark.png" src="assets/screenshots/today-light.png" alt="Today screen"></div>
+        <div class="showcase-phone"><img data-light="assets/screenshots/add-routine-light.png" data-dark="assets/screenshots/add-routine-dark.png" src="assets/screenshots/add-routine-light.png" alt="Add routine sheet"></div>
+        <div class="showcase-phone"><img data-light="assets/screenshots/manage-routines-light.png" data-dark="assets/screenshots/manage-routines-dark.png" src="assets/screenshots/manage-routines-light.png" alt="Manage routines sheet"></div>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <div class="theme-demo reveal">
+        <span>Light</span>
+        <button class="theme-switch" id="theme-switch" type="button" role="switch" aria-checked="false" aria-label="Toggle dark mode preview">
+          <span class="theme-switch-knob"></span>
+        </button>
+        <span>Dark</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA / DOWNLOAD -->
+  <section id="download" class="cta">
+    <div class="wrap cta-row">
+      <div class="cta-copy reveal">
+        <p class="eyebrow cta-eyebrow">Coming soon</p>
+        <h2>Ready to win the week?</h2>
+        <p>Win The Week is in final development for iPhone and Android.
+        Check back here when the app is ready to download.</p>
+        <div class="hero-ctas cta-ctas">
+          <a href="#" class="store-badge" data-store="apple" onclick="return false;">
+            <svg width="20" height="20" viewBox="0 0 384 512" fill="currentColor"><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141 0 184.8 0 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-57.7-90-57.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/></svg>
+            <span><small>Coming soon on the</small>App Store</span>
+          </a>
+          <a href="#" class="store-badge" data-store="google" onclick="return false;">
+            <svg width="20" height="20" viewBox="0 0 512 512" fill="currentColor"><path d="M325.3 234.3L104.6 13l280.8 161.2-60.1 60.1zM47 0C34 6.8 25.3 19.2 25.3 35.3v441.3c0 16.1 8.7 28.5 21.7 35.3l256.6-256L47 0zm425.2 225.6l-58.9-34.1-65.7 64.5 65.7 64.5 60.1-34.1c18-14.3 18-46.5-1.2-60.8zM104.6 499l280.8-161.2-60.1-60.1L104.6 499z"/></svg>
+            <span><small>Coming soon on</small>Google Play</span>
+          </a>
+        </div>
+
+        <p class="cta-privacy-note">No account, no tracking and no data sent to a server. <a href="privacy.html">Read our privacy policy</a>.</p>
+      </div>
+
+      <div class="cta-visual reveal">
+        <div class="phone-frame cta-phone">
+          <img src="assets/screenshots/today-dark.png" alt="Win The Week app showing today's checklist, mostly checked off">
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-row">
+    <a class="brand" href="#top">
+      <img src="assets/app-icon.png" alt="" class="brand-mark">
+      <span class="brand-word">Win The Week</span>
+    </a>
+    <nav class="footer-nav">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#screens">Screens</a>
+      <a href="#download">Get the app</a>
+      <a href="privacy.html">Privacy</a>
+    </nav>
+    <p class="footer-fine">
+      &copy; <span id="year"></span> Win The Week. Apple, the Apple logo and
+      App Store are trademarks of Apple Inc. Google Play is a trademark of
+      Google LLC.
+    </p>
+  </div>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { androidTextFix, fonts } from '../theme/fonts';
@@ -11,11 +11,20 @@ type ItemLayout = { x: number; width: number };
 
 export default function NavBar() {
   const { colors, shadowCard } = useTheme();
-  const { activeScreen, showScreen } = useAppState();
+  const { activeScreen, showScreen, registerCoachTarget } = useAppState();
   const [layouts, setLayouts] = useState<Record<string, ItemLayout>>({});
   const indicatorX = useRef(new Animated.Value(0)).current;
   const indicatorW = useRef(new Animated.Value(0)).current;
   const initialized = useRef(false);
+  // Separate from `onItemLayout` below — that one measures position relative
+  // to the navbar itself (for the sliding indicator), this needs a real
+  // window-absolute rect for the coach-mark tour to draw a spotlight around.
+  const weekTargetRef = useRef<View>(null);
+
+  useEffect(() => {
+    registerCoachTarget('navWeek', weekTargetRef.current);
+    return () => registerCoachTarget('navWeek', null);
+  }, [registerCoachTarget]);
 
   const active: ScreenName = activeScreen === 'settings' ? 'today' : activeScreen;
 
@@ -77,7 +86,7 @@ export default function NavBar() {
           </Text>
         </PressScale>
       </View>
-      <View style={styles.item} onLayout={onItemLayout('week')}>
+      <View ref={weekTargetRef} collapsable={false} style={styles.item} onLayout={onItemLayout('week')}>
         <PressScale scaleTo={0.96} style={styles.itemInner} onPress={() => showScreen('week')}>
           <WeekNavIcon color={active === 'week' ? colors.accent : colors.muted} />
           <Text

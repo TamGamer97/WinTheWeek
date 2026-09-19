@@ -36,7 +36,9 @@ export type DayInfo = {
 // against whichever template really applied to it, while today-and-later
 // days pick up the new one. See `docs/DECISIONS.md`.
 // `createdIso`, when present, prevents a newly-created routine from appearing
-// on dates before it existed. It is optional for backwards compatibility with
+// on dates before it existed (except, within the current week only, as a
+// *retroactive* instance — see `daysForWeek()`/`isRetroactiveDay()` in
+// data/schedule.ts). It is optional for backwards compatibility with
 // routines saved before creation dates were recorded.
 export type Routine = {
   id: number;
@@ -55,7 +57,11 @@ export type Routine = {
 // A routine instance rendered on a specific real day — a task-shaped object
 // with a composite id of `${routineId}::${iso}`, carrying enough to derive
 // its own week id and weekday back out (see utils/date.ts) without a
-// separate week parameter.
+// separate week parameter. `retroactive` mirrors
+// `data/schedule.ts`'s `isRetroactiveDay()` for this instance's own date —
+// a day that only shows this routine because of a schedule change (a fresh
+// creation, or a `defaultDays` edit) that happened after the date itself
+// had already passed. See docs/DECISIONS.md.
 export type RoutineInstance = {
   id: string;
   title: string;
@@ -64,6 +70,7 @@ export type RoutineInstance = {
   isRoutine: true;
   timesPerWeek: number;
   order: number;
+  retroactive: boolean;
 };
 
 export type TaskLike = RoutineInstance;

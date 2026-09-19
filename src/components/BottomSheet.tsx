@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
 import { fonts } from '../theme/fonts';
 import { useAppState } from '../state/AppState';
-import { daysForWeek, missedRegularDaysThisWeek } from '../data/schedule';
+import { daysForWeek, isRetroactiveDay } from '../data/schedule';
 import { routineColorHex } from '../theme/colors';
 import { DayKey } from '../data/types';
 import { DAY_KEYS, addDays, dayMeta, formatDayHeading, isoDate, isoForWeekDay, parseISODate, weekIdFor } from '../utils/date';
@@ -347,9 +347,10 @@ function useRoutineEditContent() {
 // week when opened from the Today screen's quick add — never assumed from
 // context, so this never accidentally edits the wrong one.
 //
-// A day (or, for "Not scheduled yet", a whole week) that's already passed
-// is a read-only record — see docs/DECISIONS.md. `locked` drives every
-// add/remove/reorder affordance below; today itself is never locked.
+// A day that's already passed is read-only — no adding, and removing only
+// ever works for a *retroactive* entry (one that only landed here because
+// of a schedule change made after the day itself had already passed), never
+// a genuinely real one. See docs/DECISIONS.md.
 function useDayContent() {
   const { colors } = useTheme();
   const {
@@ -369,20 +370,21 @@ function useDayContent() {
   const dayKey = isUnsched ? null : (sheetDayKey as DayKey);
   const d = isUnsched ? null : dayMeta(sheetDayKey as DayKey);
   const dayIso = dayKey ? isoDate(addDays(parseISODate(wId), DAY_KEYS.indexOf(dayKey))) : '';
-  const locked = isUnsched ? wId < todayWeekId : dayIso !== '' && dayIso < todayIso;
+  const isPast = dayIso !== '' && dayIso < todayIso;
+  const today = { iso: todayIso, weekId: todayWeekId };
 
   let listItems: React.ReactNode;
   if (isUnsched) {
     const pending = pendingRoutines(wId);
     listItems = pending.length ? (
-      pending.map((r) => <RoutinePendingRow key={r.id} routine={r} weekId={wId} locked={locked} />)
+      pending.map((r) => <RoutinePendingRow key={r.id} routine={r} weekId={wId} />)
     ) : (
-      <Text style={[styles.empty, { color: colors.muted }]}>{locked ? 'Nothing left unscheduled' : 'All caught up'}</Text>
+      <Text style={[styles.empty, { color: colors.muted }]}>All caught up</Text>
     );
   } else {
     const key = dayKey as DayKey;
     const scheduled = tasksFor(wId, key);
-    const available = routines.filter((r) => !daysForWeek(r, wId).includes(key));
+    const available = routines.filter((r) => !daysForWeek(r, wId, today).includes(key));
 
     listItems = (
       <>
@@ -390,24 +392,26 @@ function useDayContent() {
           <DraggableTaskList
             tasks={scheduled}
             rowGap={8}
-            locked={locked}
+            locked={isPast}
             renderTask={(t) => (
               <ScheduledRoutineRow
                 title={t.title}
                 color={t.color}
                 timesPerWeek={t.timesPerWeek}
                 onRemove={
-                  locked ? undefined : () => toggleRoutineForWeekDay(Number(String(t.id).split('::')[0]), wId, key)
+                  !isPast || t.retroactive
+                    ? () => toggleRoutineForWeekDay(Number(String(t.id).split('::')[0]), wId, key)
+                    : undefined
                 }
                 compact
               />
             )}
           />
         ) : (
-          <Text style={[styles.empty, { color: colors.muted }]}>{locked ? 'Nothing was planned' : 'Nothing here yet'}</Text>
+          <Text style={[styles.empty, { color: colors.muted }]}>Nothing here yet</Text>
         )}
 
-        {locked ? null : !routines.length ? (
+        {isPast ? null : !routines.length ? (
           <PrimaryButton label="Create a routine" onPress={() => openAdd(key)} />
         ) : available.length ? (
           <>
@@ -430,10 +434,8 @@ function useDayContent() {
   return {
     title: isUnsched ? 'Not scheduled yet' : d?.label ?? '',
     context: isUnsched
-      ? locked
-        ? "This week has passed, so it can't be edited"
-        : 'Routines with no day chosen yet'
-      : `${dayIso ? formatDayHeading(dayIso) : ''} · ${locked ? "Passed — can't be edited" : 'Plan this day'}`,
+      ? 'Routines with no day chosen yet'
+      : `${dayIso ? formatDayHeading(dayIso) : ''} · ${isPast ? "Passed — can't be edited" : 'Plan this day'}`,
     body: (
       <View>
         <View style={styles.taskList}>{listItems}</View>
@@ -473,17 +475,6 @@ function useRoutinePlanContent() {
   const matchesUsual =
     usualDays.length === sheetMultiDays.length && usualDays.every((d) => sheetMultiDays.includes(d));
   const routineColor = routineColorHex(r?.color, isDark);
-  // See docs/DECISIONS.md: a regular day added mid-week can't retroactively
-  // apply to its own already-passed date — flag those rows so the picker
-  // explains the shortfall instead of leaving it looking like a mistake.
-  const missedRegular = r && isThisWeek ? missedRegularDaysThisWeek(r, weekId, todayIso) : [];
-  // Which of the usual days "Use usual days" would try to add are already
-  // past this week (and not already locked in) — applyUsualDaysToPlan
-  // silently leaves these out (see docs/DECISIONS.md), so flag them here
-  // rather than letting the click look like it just didn't work.
-  const usualDaysPastSkip = usualDays.filter(
-    (d) => isoForWeekDay(weekId, d) < todayIso && !sheetMultiDays.includes(d),
-  );
 
   return {
     title: r?.title ?? '',
@@ -493,11 +484,16 @@ function useRoutinePlanContent() {
         <SheetLabel noMarginTop>Days</SheetLabel>
         {weekDays.map((day, index) => {
           const picked = sheetMultiDays.includes(day.key);
-          // Only the current week can have already-passed days within it —
-          // a past week is never reachable here at all (its "Not scheduled
-          // yet" section has no add button — see useDayContent).
-          const isPast = isThisWeek && day.iso < todayIso;
-          const disabled = isPast || (!picked && sheetMultiDays.length >= sheetMultiMax);
+          const isPast = day.iso < todayIso;
+          // Whether this day was *already* a real commitment, by the pure
+          // historical resolution (2-arg daysForWeek — deliberately not
+          // today-aware, since it's asking "was this real" rather than
+          // "what should show"). A past day can only ever be toggled *off*
+          // here, never freshly picked — manual retroactive scheduling only
+          // happens by editing/creating the routine's regular days, never
+          // by hand-picking a day in this sheet (see docs/DECISIONS.md).
+          const wasReal = r ? daysForWeek(r, weekId).includes(day.key) : false;
+          const disabled = isPast ? wasReal || !picked : !picked && sheetMultiDays.length >= sheetMultiMax;
           const otherTasks = tasksFor(weekId, day.key).filter(
             (t) => Number(String(t.id).split('::')[0]) !== sheetRoutineId,
           );
@@ -510,7 +506,7 @@ function useRoutinePlanContent() {
               disabled={disabled}
               isToday={day.iso === todayIso}
               otherTasks={otherTasks}
-              missedRegular={missedRegular.includes(day.key)}
+              retroactive={isPast && picked && !wasReal}
               routineColor={routineColor}
               onToggle={() => toggleMultiDay(day.key)}
             />
@@ -525,13 +521,6 @@ function useRoutinePlanContent() {
           ) : null}
           {r ? <SheetLinkButton label="Edit usual days" onPress={() => openRoutineEdit(r.id)} /> : null}
         </View>
-        {usualDays.length && !matchesUsual && usualDaysPastSkip.length ? (
-          <SheetHint>
-            {usualDaysPastSkip.length === 1
-              ? `${dayMeta(usualDaysPastSkip[0]).label} already passed, so it won't be added`
-              : "Some usual days already passed, so they won't be added"}
-          </SheetHint>
-        ) : null}
         <PrimaryButton label="Save" onPress={confirmRoutinePlan} />
         <GhostButton label="Cancel" onPress={closeSheet} />
       </View>
@@ -554,11 +543,15 @@ function useMoveRoutineDayContent() {
   } = useAppState();
   const r = routines.find((r) => r.id === sheetRoutineId);
   const fromLabel = sheetRoutineFromDay ? dayMeta(sheetRoutineFromDay).label : '';
-  const takenDays = r && sheetRoutineFromIso ? daysForWeek(r, weekIdFor(parseISODate(sheetRoutineFromIso))) : [];
+  const takenDays =
+    r && sheetRoutineFromIso
+      ? daysForWeek(r, weekIdFor(parseISODate(sheetRoutineFromIso)), { iso: todayIso, weekId: todayWeekId })
+      : [];
   // This sheet is only ever reached from the Today screen's task menu (see
-  // TaskMenu.tsx, which already hides "Switch day" for a past-day task), so
-  // the source is always this real week — excluding its already-passed days
-  // as destinations is what stops moving a task backward into the past.
+  // TaskMenu.tsx, which gates "Switch day" on the task not being real past
+  // history), so the source is always this real week — excluding its
+  // already-passed days as destinations is what stops moving a task
+  // backward into the past.
   const pastDays = DAY_KEYS.filter((day) => isoForWeekDay(todayWeekId, day) < todayIso);
   return {
     title: 'Move this day',

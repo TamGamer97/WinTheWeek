@@ -4,7 +4,7 @@
     {
       "name": "win-the-week-site",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "5544", "--directory", "../Website"],
+      "runtimeArgs": ["-m", "http.server", "5544", "--directory", "website"],
       "port": 5544
     },
     {

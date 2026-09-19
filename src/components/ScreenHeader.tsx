@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { androidTextFix, fonts } from '../theme/fonts';
 import { ChartBarIcon, GearIcon } from '../icons/Icons';
 import IconButton from './IconButton';
 import SlideDayTransition from './SlideDayTransition';
+import { useAppState } from '../state/AppState';
 
 type Props = {
   title: string;
@@ -26,6 +27,18 @@ export default function ScreenHeader({
   transitionDirection,
 }: Props) {
   const { colors } = useTheme();
+  const { registerCoachTarget } = useAppState();
+  // Only registered while this header actually renders an Analytics button
+  // (Settings' header doesn't pass `onOpenAnalytics`) — see Fab.tsx for why
+  // a bare `View` ref is used instead of one through `IconButton`/`PressScale`.
+  const analyticsTargetRef = useRef<View>(null);
+
+  useEffect(() => {
+    if (!onOpenAnalytics) return;
+    registerCoachTarget('headerAnalytics', analyticsTargetRef.current);
+    return () => registerCoachTarget('headerAnalytics', null);
+  }, [onOpenAnalytics, registerCoachTarget]);
+
   const heading = (
     <View style={{ flex: 1 }}>
       <Text style={[styles.headline, androidTextFix, { color: colors.ink, fontFamily: fonts.headingSemiBold }]}>
@@ -54,9 +67,11 @@ export default function ScreenHeader({
         )}
         <View style={styles.actions}>
           {onOpenAnalytics ? (
-            <IconButton onPress={onOpenAnalytics}>
-              <ChartBarIcon color={colors.ink} />
-            </IconButton>
+            <View ref={analyticsTargetRef} collapsable={false}>
+              <IconButton onPress={onOpenAnalytics}>
+                <ChartBarIcon color={colors.ink} />
+              </IconButton>
+            </View>
           ) : null}
           <IconButton onPress={onOpenSettings}>
             <GearIcon color={colors.ink} />

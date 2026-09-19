@@ -12,6 +12,9 @@ export default function WeekScreen() {
     useAppState();
 
   const unscheduledCount = pendingRoutines(weekId).length;
+  // A past week is a closed record — no planning affordance for it at all,
+  // not just per-day restrictions (see docs/DECISIONS.md).
+  const isPastWeek = weekId < todayWeekId;
 
   const offset = weeksBetween(parseISODate(todayWeekId), currentWeekStart);
   const title = offset === 0 ? 'This week' : offset === 1 ? 'Next week' : offset === -1 ? 'Last week' : weekLabel;
@@ -26,7 +29,9 @@ export default function WeekScreen() {
     >
       <ScreenHeader title={title} subtitle={subtitle} onOpenSettings={openSettings} onOpenAnalytics={openAnalytics} />
       <WeekNav />
-      <GroupHeader label="Not scheduled yet" count={unscheduledCount} onPress={() => openDaySheet('unscheduled', weekId)} />
+      {isPastWeek ? null : (
+        <GroupHeader label="Not scheduled yet" count={unscheduledCount} onPress={() => openDaySheet('unscheduled', weekId)} />
+      )}
       <WeekBoard />
     </ScrollView>
   );
