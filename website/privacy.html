@@ -49,57 +49,87 @@
         <aside class="privacy-summary" aria-label="At a glance">
           <p class="eyebrow">At a glance</p>
           <ul>
-            <li><span class="summary-mark summary-mark-green">&#10003;</span>No account or sign-in</li>
-            <li><span class="summary-mark summary-mark-green">&#10003;</span>No ads or analytics</li>
-            <li><span class="summary-mark summary-mark-green">&#10003;</span>No app data sent to us</li>
-            <li><span class="summary-mark summary-mark-blue">&#8226;</span>Theme preference stays in your browser</li>
+            <li><span class="summary-mark summary-mark-green" aria-hidden="true"><svg viewBox="0 0 14 14" fill="none"><path d="M2.5 7.3l3 3 6-6.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>No account or sign-in</li>
+            <li><span class="summary-mark summary-mark-green" aria-hidden="true"><svg viewBox="0 0 14 14" fill="none"><path d="M2.5 7.3l3 3 6-6.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>No ads or analytics</li>
+            <li><span class="summary-mark summary-mark-green" aria-hidden="true"><svg viewBox="0 0 14 14" fill="none"><path d="M2.5 7.3l3 3 6-6.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>No app data sent to us</li>
+            <li><span class="summary-mark summary-mark-blue" aria-hidden="true"><svg viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="3" fill="currentColor"/></svg></span>Theme preference stays in your browser</li>
           </ul>
+          <nav class="privacy-jump" aria-label="Jump to a section">
+            <a href="#who">Who this is for</a>
+            <a href="#device">On your device</a>
+            <a href="#tracking">Accounts &amp; tracking</a>
+            <a href="#website">This website</a>
+            <a href="#legal">Legal basis</a>
+            <a href="#rights">Your rights</a>
+            <a href="#contact">Contact</a>
+          </nav>
         </aside>
 
         <article class="privacy-copy">
-          <section>
-            <h2>1. Who this policy is for</h2>
+          <section id="who">
+            <div class="privacy-section-head">
+              <span class="privacy-section-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="M5 2.5h7l3 3v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-14a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M12 2.5V6h3M7 11h6M7 14h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+              <h2>1. Who this policy is for</h2>
+            </div>
             <p>This policy explains how Win The Week handles information when you use the Win The Week app or this website. The app is a personal routine planner for iPhone and Android.</p>
             <p><strong>Important:</strong> this policy describes the current version of the app and website. If we add an account, cloud backup, analytics, advertising, email sign-up, payments or a new data-sharing feature, we will update this policy before that feature is used.</p>
           </section>
 
-          <section>
-            <h2>2. The app: information stays on your device</h2>
+          <section id="device">
+            <div class="privacy-section-head">
+              <span class="privacy-section-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><rect x="5" y="1.5" width="10" height="17" rx="2.4" stroke="currentColor" stroke-width="1.5"/><path d="M8.3 15.4h3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+              <h2>2. The app: information stays on your device</h2>
+            </div>
             <p>The app stores the information you enter to make the app work. This may include routine names, colours, frequencies, planned days, task order, completion history and in-app onboarding preferences.</p>
             <p>This information is stored locally in the app’s on-device storage. It is not transmitted to Win The Week, a cloud service, advertisers, analytics providers or other third parties. We do not receive, view, sell or share it.</p>
             <div class="privacy-callout">
-              <span class="callout-icon" aria-hidden="true">&#128274;</span>
+              <span class="callout-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><rect x="4" y="9" width="12" height="8.5" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M6.5 9V6.2a3.5 3.5 0 0 1 7 0V9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
               <p><strong>Deleting the app</strong> normally removes its locally stored information from that device. Device backups and storage-management behaviour are controlled by your device and operating-system settings.</p>
             </div>
           </section>
 
-          <section>
-            <h2>3. No accounts, advertising or tracking</h2>
+          <section id="tracking">
+            <div class="privacy-section-head">
+              <span class="privacy-section-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="M10 1.8l6.5 2.4v5.1c0 4.6-2.9 7.6-6.5 8.9-3.6-1.3-6.5-4.3-6.5-8.9V4.2L10 1.8Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></span>
+              <h2>3. No accounts, advertising or tracking</h2>
+            </div>
             <p>Win The Week does not ask you to create an account. It does not use advertising SDKs, behavioural advertising, analytics SDKs, tracking pixels or cross-app tracking. It does not collect device identifiers, precise location, contacts, photos, microphone data or health data.</p>
             <p>The app does not currently send notifications or request notification permission.</p>
           </section>
 
-          <section>
-            <h2>4. This website</h2>
+          <section id="website">
+            <div class="privacy-section-head">
+              <span class="privacy-section-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M2 10h16M10 2c2.2 2.2 3.4 5 3.4 8s-1.2 5.8-3.4 8c-2.2-2.2-3.4-5-3.4-8S7.8 4.2 10 2Z" stroke="currentColor" stroke-width="1.5"/></svg></span>
+              <h2>4. This website</h2>
+            </div>
             <p>This website does not provide a contact form, mailing list or account system, and it does not use analytics or advertising cookies. We do not intentionally collect personal information through the site.</p>
             <p>If you choose a light or dark theme, the site stores that preference in your browser’s local storage under the key <code>wtw-theme</code>. It is used only to remember your display choice on this site. It is not sent to us or shared with anyone. You can remove it at any time by clearing this site’s storage in your browser.</p>
             <p>The site loads fonts from Google Fonts. Your browser connects to Google to retrieve those font files, so Google may receive technical information such as your IP address under its own privacy terms. You can block this through browser controls, but the site’s typography may change.</p>
           </section>
 
-          <section>
-            <h2>5. Legal basis and retention</h2>
+          <section id="legal">
+            <div class="privacy-section-head">
+              <span class="privacy-section-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><rect x="2" y="5" width="16" height="4" rx="1.2" stroke="currentColor" stroke-width="1.5"/><path d="M3.5 9v6.5a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V9" stroke="currentColor" stroke-width="1.5"/><path d="M8 12h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+              <h2>5. Legal basis and retention</h2>
+            </div>
             <p>Because the app’s routine data remains on your device and is not sent to us, Win The Week does not process that data as a controller. Where website data is processed by a third party as described above, the processing is limited to delivering the requested website and fonts. We do not retain a database of visitor or app data.</p>
             <p>If you contact us directly by email in the future, we will use the information you provide to respond to your enquiry. The lawful basis will normally be our legitimate interests in responding to users and running the service, or taking steps you ask us to take. We will keep correspondence only for as long as reasonably necessary to handle the enquiry and meet legal obligations.</p>
           </section>
 
-          <section>
-            <h2>6. Your choices and rights</h2>
+          <section id="rights">
+            <div class="privacy-section-head">
+              <span class="privacy-section-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><rect x="1.5" y="6.5" width="17" height="7" rx="3.5" stroke="currentColor" stroke-width="1.5"/><circle cx="6.5" cy="10" r="2.2" fill="currentColor"/></svg></span>
+              <h2>6. Your choices and rights</h2>
+            </div>
             <p>For information held only on your own device, you control it directly: you can edit routines in the app or remove the app and its local data. If we process personal data about you through a future direct contact, UK data-protection law may give you rights to ask for access, correction, deletion, restriction, portability or to object to processing. You can also withdraw consent where consent is the basis for processing.</p>
             <p>You have the right to complain to the UK Information Commissioner’s Office (ICO). Details are available at <a href="https://ico.org.uk/make-a-complaint/" rel="external">ico.org.uk/make-a-complaint</a>.</p>
           </section>
 
-          <section>
-            <h2>7. Contact and policy changes</h2>
+          <section id="contact">
+            <div class="privacy-section-head">
+              <span class="privacy-section-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><rect x="2" y="4.5" width="16" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M3 6l7 5 7-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <h2>7. Contact and policy changes</h2>
+            </div>
             <p>Before this site is published, the operator’s legal name and a working privacy contact email must be added here. This is required so people can exercise their data-protection rights and contact the data controller.</p>
             <p>We will post any updates to this page and change the effective date above. Please review it when you use a new version of the app or site.</p>
           </section>
