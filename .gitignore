@@ -9,6 +9,8 @@ dist/
 web-build/
 expo-env.d.ts
 build
+.expo-export*/
+.plan-verify/
 
 # Generated native projects and build output
 /android/
