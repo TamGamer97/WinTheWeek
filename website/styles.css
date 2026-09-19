@@ -328,6 +328,10 @@ img { max-width: 100%; display: block; }
   background: linear-gradient(155deg, var(--bezel-edge), var(--bezel));
   box-shadow: var(--shadow-panel);
   animation: floaty 7s ease-in-out infinite;
+  /* The hover parallax updates this transform; easing it prevents the
+     phones from snapping from one pointer position to the next. */
+  transition: transform .22s cubic-bezier(.22, 1, .36, 1);
+  will-change: transform;
 }
 
 .phone-back {
