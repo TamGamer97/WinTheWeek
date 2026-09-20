@@ -11,17 +11,37 @@ export default function GroupHeader({ label, count, onPress }: { label: string; 
   // page surface; dark mode can use the highlight color as-is.
   const tintColor = isDark ? colors.highlight : darken(colors.highlight, 0.72);
   const countBg = isDark ? 'rgba(0,0,0,0.22)' : 'rgba(0,0,0,0.07)';
+  // Nothing to do isn't something to flag — the colored/bold pill is meant
+  // to draw the eye toward a real pending count, so an empty one drops to a
+  // quiet, neutral-filled row (not the highlight tint, but not fully
+  // transparent either — a bare row with no fill at all reads as broken)
+  // instead of reading like a standing alert. Still tappable (opens the
+  // same "All caught up" sheet); only the weight changes.
+  const isEmpty = count === 0;
 
   return (
-    <PressScale scaleTo={0.98} onPress={onPress} style={[styles.wrap, { backgroundColor: colors.highlightSoft }]}>
-      <Text numberOfLines={1} style={[styles.label, androidTextFix, { color: tintColor, fontFamily: fonts.bodyBold }]}>
+    <PressScale
+      scaleTo={0.98}
+      onPress={onPress}
+      style={[styles.wrap, { backgroundColor: isEmpty ? colors.line : colors.highlightSoft }]}
+    >
+      <Text
+        numberOfLines={1}
+        style={[
+          styles.label,
+          androidTextFix,
+          { color: isEmpty ? colors.muted : tintColor, fontFamily: isEmpty ? fonts.bodyMedium : fonts.bodyBold },
+        ]}
+      >
         {label}
       </Text>
-      <View style={[styles.count, { backgroundColor: countBg }]}>
-        <Text style={[styles.countText, androidTextFix, { color: tintColor, fontFamily: fonts.bodyBold }]}>{count}</Text>
-      </View>
-      <View style={{ opacity: 0.75 }}>
-        <ChevronRightIcon color={tintColor} />
+      {isEmpty ? null : (
+        <View style={[styles.count, { backgroundColor: countBg }]}>
+          <Text style={[styles.countText, androidTextFix, { color: tintColor, fontFamily: fonts.bodyBold }]}>{count}</Text>
+        </View>
+      )}
+      <View style={{ opacity: isEmpty ? 0.5 : 0.75 }}>
+        <ChevronRightIcon color={isEmpty ? colors.muted : tintColor} />
       </View>
     </PressScale>
   );

@@ -2,7 +2,15 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Pressable, StyleSheet } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 
-export default function Switch({ value, onValueChange }: { value: boolean; onValueChange: (v: boolean) => void }) {
+export default function Switch({
+  value,
+  onValueChange,
+  disabled,
+}: {
+  value: boolean;
+  onValueChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
   const { colors, shadowCard } = useTheme();
   const progress = useRef(new Animated.Value(value ? 1 : 0)).current;
 
@@ -19,8 +27,8 @@ export default function Switch({ value, onValueChange }: { value: boolean; onVal
   const translateX = progress.interpolate({ inputRange: [0, 1], outputRange: [3, 22] });
 
   return (
-    <Pressable onPress={() => onValueChange(!value)}>
-      <Animated.View style={[styles.track, { backgroundColor }]}>
+    <Pressable onPress={disabled ? undefined : () => onValueChange(!value)} disabled={disabled}>
+      <Animated.View style={[styles.track, { backgroundColor, opacity: disabled ? 0.5 : 1 }]}>
         <Animated.View style={[styles.knob, shadowCard, { transform: [{ translateX }] }]} />
       </Animated.View>
     </Pressable>
@@ -31,7 +39,7 @@ const styles = StyleSheet.create({
   track: {
     width: 46,
     height: 27,
-    borderRadius: 999,
+    borderRadius: 10,
     justifyContent: 'center',
   },
   knob: {
@@ -39,7 +47,7 @@ const styles = StyleSheet.create({
     top: 3,
     width: 21,
     height: 21,
-    borderRadius: 999,
+    borderRadius: 7,
     backgroundColor: '#fff',
   },
 });

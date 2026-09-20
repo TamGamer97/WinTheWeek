@@ -33,11 +33,14 @@ function isoOf(instanceId: string): string {
 // whole card (rather than a separate grip handle) both opens its usual
 // options menu and arms it for dragging — move your finger before letting
 // go and it reorders instead. Built on plain PanResponder + Animated (no
-// gesture handler / Reanimated in this project): every row keeps an
-// Animated `top` that eases it into its slot whenever the order changes,
-// while the row actively being dragged tracks the finger directly via a
-// JS-driven `translateY` — so the list underneath it reflows smoothly as
-// it passes.
+// gesture handler / Reanimated in this project): every row keeps a single
+// JS-driven `top` Animated.Value that's either eased into its slot whenever
+// the order changes, or — for whichever row is actively being dragged —
+// set directly to the finger's position every move. Using the same value
+// both ways (rather than a separate transform offset layered on top of it
+// while dragging) is what lets the drop hand-off itself just be an
+// `Animated.timing` on that one value, instead of a same-tick swap between
+// two values that could visibly desync on a slower device.
 export default function DraggableTaskList({
   tasks,
   renderTask,
@@ -134,7 +137,6 @@ export default function DraggableTaskList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderIds, rowGap, tasks]);
 
-  const dragY = useRef(new Animated.Value(0)).current;
   const dragStartTopRef = useRef(0);
 
   const handleLayout = useCallback(
@@ -157,18 +159,29 @@ export default function DraggableTaskList({
       const idx = orderRef.current.indexOf(id);
       const top = topOfIndex(orderRef.current, idx);
       dragStartTopRef.current = top;
-      dragY.setValue(0);
       getTopAnim(id, top).setValue(top);
     },
-    [dragY, getTopAnim, topOfIndex],
+    [getTopAnim, topOfIndex],
   );
 
+  // While dragging, the row's own `top` *is* the finger's position — set
+  // directly, with no separate transform layered on top of it. Previously
+  // the dragged row's position was `top` (frozen at its pre-drag slot) plus
+  // a `translateY` offset that tracked the finger; dropping it then had to
+  // hand off from that live offset to a freshly `.setValue()`d `top` in the
+  // same tick, which on a slower device wouldn't always land in the same
+  // frame as the transform being cleared — the card visibly jumped before
+  // settling. A single value for "where this row actually is," updated the
+  // same way whether a finger or an animation is driving it, has no handoff
+  // to get wrong.
   const moveDrag = useCallback(
     (id: number, dy: number) => {
-      dragY.setValue(dy);
+      const newTop = dragStartTopRef.current + dy;
+      getTopAnim(id, newTop).setValue(newTop);
+
       const order = orderRef.current;
       const idx = order.indexOf(id);
-      const center = dragStartTopRef.current + heightOf(id) / 2 + dy;
+      const center = newTop + heightOf(id) / 2;
 
       let y = 0;
       let targetIdx = idx;
@@ -188,7 +201,7 @@ export default function DraggableTaskList({
         setOrderIds(next);
       }
     },
-    [dragY, heightOf, rowGap],
+    [getTopAnim, heightOf, rowGap],
   );
 
   const endDrag = useCallback(
@@ -198,11 +211,19 @@ export default function DraggableTaskList({
       const order = orderRef.current;
       const idx = order.indexOf(id);
       const top = topOfIndex(order, idx);
-      Animated.spring(dragY, { toValue: 0, useNativeDriver: false, friction: 9, tension: 60 }).start();
-      getTopAnim(id, top).setValue(top);
+      // Eased into its final slot exactly like every other row's reflow
+      // (same duration/easing as the "ease every non-dragged row" effect
+      // above) instead of teleporting there — this row was mid-motion a
+      // moment ago, so it should keep moving, not stop dead and re-appear.
+      Animated.timing(getTopAnim(id, top), {
+        toValue: top,
+        duration: 220,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
       if (dayIsoRef.current) reorderRoutinesForDay(dayIsoRef.current, order);
     },
-    [dragY, getTopAnim, reorderRoutinesForDay, topOfIndex],
+    [getTopAnim, reorderRoutinesForDay, topOfIndex],
   );
 
   if (!orderIds.length) return null;
@@ -219,7 +240,6 @@ export default function DraggableTaskList({
             key={id}
             task={task}
             top={top}
-            dragY={dragY}
             dragging={isDragging}
             renderTask={renderTask}
             locked={locked}
@@ -237,7 +257,6 @@ export default function DraggableTaskList({
 function DraggableRow({
   task,
   top,
-  dragY,
   dragging,
   renderTask,
   locked,
@@ -248,7 +267,6 @@ function DraggableRow({
 }: {
   task: RoutineInstance;
   top: Animated.Value;
-  dragY: Animated.Value;
   dragging: boolean;
   renderTask?: (task: RoutineInstance) => React.ReactNode;
   locked?: boolean;
@@ -364,7 +382,6 @@ function DraggableRow({
         styles.row,
         {
           top,
-          transform: dragging ? [{ translateY: dragY }] : [],
           zIndex: dragging ? 10 : 1,
           elevation: dragging ? 8 : 0,
         },

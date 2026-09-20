@@ -237,3 +237,30 @@ export function HelpCircleIcon({ size = 18, color = '#12141C' }: IconProps) {
     </Svg>
   );
 }
+
+// An envelope — Settings' "Contact" email row.
+export function MailIcon({ size = 18, color = '#12141C' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Rect x={3} y={5.5} width={18} height={13} rx={2.2} stroke={color} strokeWidth={1.6} />
+      <Path d="M4 7l8 6 8-6" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+// A globe (circle + meridian arcs) — Settings' "Contact" website row.
+export function GlobeIcon({ size = 18, color = '#12141C' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Circle cx={12} cy={12} r={9.2} stroke={color} strokeWidth={1.6} />
+      <Path d="M2.8 12h18.4" stroke={color} strokeWidth={1.6} strokeLinecap="round" />
+      <Path
+        d="M12 2.8c2.6 2.4 4 5.8 4 9.2s-1.4 6.8-4 9.2c-2.6-2.4-4-5.8-4-9.2s1.4-6.8 4-9.2Z"
+        stroke={color}
+        strokeWidth={1.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}

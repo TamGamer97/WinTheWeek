@@ -1,19 +1,45 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { androidTextFix, fonts } from '../theme/fonts';
-import { ChevronLeftIcon, ChevronRightIcon, HelpCircleIcon, MoonIcon, RepeatIcon, SunIcon } from '../icons/Icons';
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  GlobeIcon,
+  HelpCircleIcon,
+  MailIcon,
+  MoonIcon,
+  RepeatIcon,
+  SunIcon,
+  TrashIcon,
+} from '../icons/Icons';
 import IconButton from '../components/IconButton';
 import PressScale from '../components/PressScale';
 import Switch from '../components/Switch';
 import SegmentedToggle from '../components/SegmentedToggle';
 import { useAppState } from '../state/AppState';
 
+const CONTACT_EMAIL = 'wintheweek@tamimshuhel.com';
+const WEBSITE_HOST = 'wintheweek.tamimshuhel.com';
+
 export default function SettingsScreen() {
   const { colors, radius, shadowCard, isDark, setIsDark } = useTheme();
-  const { closeSettings, openRoutineManager, replayTutorial } = useAppState();
+  const { closeSettings, openRoutineManager, replayTutorial, resetAppData, requestConfirm } = useAppState();
   const [dailyReminder, setDailyReminder] = useState(true);
   const [weekStartsMonday, setWeekStartsMonday] = useState(true);
+
+  const confirmReset = () =>
+    requestConfirm({
+      title: 'Reset app data?',
+      message: "This permanently deletes every routine and preference on this device. This can't be undone.",
+      confirmLabel: 'Reset',
+      icon: 'trash',
+      destructive: true,
+      onConfirm: () => {
+        resetAppData();
+        setIsDark(false);
+      },
+    });
 
   return (
     <View style={{ flex: 1 }}>
@@ -24,90 +50,160 @@ export default function SettingsScreen() {
         <Text style={[styles.headline, androidTextFix, { color: colors.ink, fontFamily: fonts.headingSemiBold }]}>Settings</Text>
       </View>
 
-      <Text style={[styles.sectionLabel, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyBold }]}>Appearance</Text>
-      <View style={[styles.card, { backgroundColor: colors.paperRaised, borderColor: colors.line, borderRadius: radius.lg }, shadowCard]}>
-        <View style={styles.row}>
-          <View>
-            <Text style={[styles.rowTitle, androidTextFix, { color: colors.ink, fontFamily: fonts.bodySemiBold }]}>Theme</Text>
-            <Text style={[styles.rowSub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>Choose how WinTheWeek looks</Text>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        overScrollMode="never"
+      >
+        <Text style={[styles.sectionLabel, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyBold }]}>Appearance</Text>
+        <View style={[styles.card, { backgroundColor: colors.paperRaised, borderColor: colors.line, borderRadius: radius.lg }, shadowCard]}>
+          <View style={styles.row}>
+            <View>
+              <Text style={[styles.rowTitle, androidTextFix, { color: colors.ink, fontFamily: fonts.bodySemiBold }]}>Theme</Text>
+              <Text style={[styles.rowSub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>Choose how WinTheWeek looks</Text>
+            </View>
+          </View>
+          <View style={styles.themeSelect}>
+            <SegmentedToggle
+              value={isDark ? 'dark' : 'light'}
+              onChange={(v) => setIsDark(v === 'dark')}
+              options={[
+                { value: 'light', label: 'Light', icon: <SunIcon size={14} color={!isDark ? colors.accent : colors.inkSoft} /> },
+                { value: 'dark', label: 'Dark', icon: <MoonIcon size={14} color={isDark ? colors.accent : colors.inkSoft} /> },
+              ]}
+            />
           </View>
         </View>
-        <View style={styles.themeSelect}>
-          <SegmentedToggle
-            value={isDark ? 'dark' : 'light'}
-            onChange={(v) => setIsDark(v === 'dark')}
-            options={[
-              { value: 'light', label: 'Light', icon: <SunIcon size={14} color={!isDark ? colors.accent : colors.inkSoft} /> },
-              { value: 'dark', label: 'Dark', icon: <MoonIcon size={14} color={isDark ? colors.accent : colors.inkSoft} /> },
-            ]}
-          />
-        </View>
-      </View>
 
-      <Text style={[styles.sectionLabel, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyBold }]}>Routines</Text>
-      <View style={[styles.card, { backgroundColor: colors.paperRaised, borderColor: colors.line, borderRadius: radius.lg }, shadowCard]}>
-        <PressScale scaleTo={0.99} onPress={openRoutineManager} style={styles.row}>
-          <View style={[styles.rowIcon, { backgroundColor: colors.accentSoft }]}>
-            <RepeatIcon size={15} color={colors.accent} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.rowTitle, androidTextFix, { color: colors.ink, fontFamily: fonts.bodySemiBold }]}>Manage routines</Text>
-            <Text style={[styles.rowSub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>
-              Edit a routine's color and days, or remove it
+        <Text style={[styles.sectionLabel, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyBold }]}>Routines</Text>
+        <View style={[styles.card, { backgroundColor: colors.paperRaised, borderColor: colors.line, borderRadius: radius.lg }, shadowCard]}>
+          <PressScale scaleTo={0.99} onPress={openRoutineManager} style={styles.row}>
+            <View style={[styles.rowIcon, { backgroundColor: colors.accentSoft, borderRadius: radius.md }]}>
+              <RepeatIcon size={16} color={colors.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowTitle, androidTextFix, { color: colors.ink, fontFamily: fonts.bodySemiBold }]}>Manage routines</Text>
+              <Text style={[styles.rowSub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>
+                Edit a routine's color and days, or remove it
+              </Text>
+            </View>
+            <ChevronRightIcon size={15} color={colors.muted} />
+          </PressScale>
+        </View>
+
+        <View style={styles.sectionLabelRow}>
+          <Text style={[styles.sectionLabelText, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyBold }]}>
+            Notifications
+          </Text>
+          <View style={[styles.devBadge, { backgroundColor: colors.line }]}>
+            <Text style={[styles.devBadgeText, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyBold }]}>
+              In development
             </Text>
           </View>
-          <ChevronRightIcon size={15} color={colors.muted} />
-        </PressScale>
-      </View>
-
-      <Text style={[styles.sectionLabel, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyBold }]}>Notifications</Text>
-      <View style={[styles.card, { backgroundColor: colors.paperRaised, borderColor: colors.line, borderRadius: radius.lg }, shadowCard]}>
-        <View style={styles.row}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.rowTitle, androidTextFix, { color: colors.ink, fontFamily: fonts.bodySemiBold }]}>Daily reminder</Text>
-            <Text style={[styles.rowSub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>
-              A nudge each morning to check today's plan
-            </Text>
-          </View>
-          <Switch value={dailyReminder} onValueChange={setDailyReminder} />
         </View>
-        <View style={[styles.row, styles.rowBorder, { borderTopColor: colors.line }]}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.rowTitle, androidTextFix, { color: colors.ink, fontFamily: fonts.bodySemiBold }]}>Week starts Monday</Text>
-            <Text style={[styles.rowSub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>
-              Applies to the week view and planning
-            </Text>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.paperRaised, borderColor: colors.line, borderRadius: radius.lg, opacity: 0.6 },
+            shadowCard,
+          ]}
+        >
+          <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowTitle, androidTextFix, { color: colors.ink, fontFamily: fonts.bodySemiBold }]}>Daily reminder</Text>
+              <Text style={[styles.rowSub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>
+                A nudge each morning to check today's plan
+              </Text>
+            </View>
+            <Switch value={dailyReminder} onValueChange={setDailyReminder} disabled />
           </View>
-          <Switch value={weekStartsMonday} onValueChange={setWeekStartsMonday} />
+          <View style={[styles.row, styles.rowBorder, { borderTopColor: colors.line }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowTitle, androidTextFix, { color: colors.ink, fontFamily: fonts.bodySemiBold }]}>Week starts Monday</Text>
+              <Text style={[styles.rowSub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>
+                Applies to the week view and planning
+              </Text>
+            </View>
+            <Switch value={weekStartsMonday} onValueChange={setWeekStartsMonday} disabled />
+          </View>
         </View>
-      </View>
 
-      <Text style={[styles.sectionLabel, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyBold }]}>Help</Text>
-      <View style={[styles.card, { backgroundColor: colors.paperRaised, borderColor: colors.line, borderRadius: radius.lg }, shadowCard]}>
-        <PressScale scaleTo={0.99} onPress={replayTutorial} style={styles.row}>
-          <View style={[styles.rowIcon, { backgroundColor: colors.accentSoft }]}>
-            <HelpCircleIcon size={15} color={colors.accent} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.rowTitle, androidTextFix, { color: colors.ink, fontFamily: fonts.bodySemiBold }]}>Replay tutorial</Text>
-            <Text style={[styles.rowSub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>
-              See the intro and quick tour again
-            </Text>
-          </View>
-          <ChevronRightIcon size={15} color={colors.muted} />
-        </PressScale>
-      </View>
-
-      <Text style={[styles.sectionLabel, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyBold }]}>About</Text>
-      <View style={[styles.card, { backgroundColor: colors.paperRaised, borderColor: colors.line, borderRadius: radius.lg }, shadowCard]}>
-        <View style={styles.row}>
-          <View>
-            <Text style={[styles.rowTitle, androidTextFix, { color: colors.ink, fontFamily: fonts.bodySemiBold }]}>Version</Text>
-            <Text style={[styles.rowSub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>WinTheWeek release</Text>
-          </View>
-          <Text style={[styles.version, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyMedium }]}>0.0.1</Text>
+        <Text style={[styles.sectionLabel, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyBold }]}>Help</Text>
+        <View style={[styles.card, { backgroundColor: colors.paperRaised, borderColor: colors.line, borderRadius: radius.lg }, shadowCard]}>
+          <PressScale scaleTo={0.99} onPress={replayTutorial} style={styles.row}>
+            <View style={[styles.rowIcon, { backgroundColor: colors.highlightSoft, borderRadius: radius.md }]}>
+              <HelpCircleIcon size={16} color={colors.highlight} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowTitle, androidTextFix, { color: colors.ink, fontFamily: fonts.bodySemiBold }]}>Replay tutorial</Text>
+              <Text style={[styles.rowSub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>
+                See the intro and quick tour again
+              </Text>
+            </View>
+            <ChevronRightIcon size={15} color={colors.muted} />
+          </PressScale>
         </View>
-      </View>
+
+        <Text style={[styles.sectionLabel, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyBold }]}>Contact</Text>
+        <View style={[styles.card, { backgroundColor: colors.paperRaised, borderColor: colors.line, borderRadius: radius.lg }, shadowCard]}>
+          <PressScale scaleTo={0.99} onPress={() => Linking.openURL(`mailto:${CONTACT_EMAIL}`)} style={styles.row}>
+            <View style={[styles.rowIcon, { backgroundColor: colors.accentSoft, borderRadius: radius.md }]}>
+              <MailIcon size={16} color={colors.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowTitle, androidTextFix, { color: colors.ink, fontFamily: fonts.bodySemiBold }]}>Email us</Text>
+              <Text style={[styles.rowSub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>
+                {CONTACT_EMAIL}
+              </Text>
+            </View>
+            <ChevronRightIcon size={15} color={colors.muted} />
+          </PressScale>
+          <PressScale
+            scaleTo={0.99}
+            onPress={() => Linking.openURL(`https://${WEBSITE_HOST}`)}
+            style={[styles.row, styles.rowBorder, { borderTopColor: colors.line }]}
+          >
+            <View style={[styles.rowIcon, { backgroundColor: colors.highlightSoft, borderRadius: radius.md }]}>
+              <GlobeIcon size={16} color={colors.highlight} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowTitle, androidTextFix, { color: colors.ink, fontFamily: fonts.bodySemiBold }]}>Website</Text>
+              <Text style={[styles.rowSub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>
+                {WEBSITE_HOST}
+              </Text>
+            </View>
+            <ChevronRightIcon size={15} color={colors.muted} />
+          </PressScale>
+        </View>
+
+        <Text style={[styles.sectionLabel, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyBold }]}>About</Text>
+        <View style={[styles.card, { backgroundColor: colors.paperRaised, borderColor: colors.line, borderRadius: radius.lg }, shadowCard]}>
+          <View style={styles.row}>
+            <View>
+              <Text style={[styles.rowTitle, androidTextFix, { color: colors.ink, fontFamily: fonts.bodySemiBold }]}>Version</Text>
+              <Text style={[styles.rowSub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>WinTheWeek release</Text>
+            </View>
+            <Text style={[styles.version, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyMedium }]}>0.0.1</Text>
+          </View>
+        </View>
+
+        <Text style={[styles.sectionLabel, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyBold }]}>Data</Text>
+        <View style={[styles.card, { backgroundColor: colors.paperRaised, borderColor: colors.line, borderRadius: radius.lg }, shadowCard]}>
+          <PressScale scaleTo={0.99} onPress={confirmReset} style={styles.row}>
+            <View style={[styles.rowIcon, { backgroundColor: colors.dangerSoft, borderRadius: radius.md }]}>
+              <TrashIcon size={16} color={colors.danger} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowTitle, androidTextFix, { color: colors.danger, fontFamily: fonts.bodySemiBold }]}>Reset app data</Text>
+              <Text style={[styles.rowSub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>
+                Erases every routine and preference on this device
+              </Text>
+            </View>
+            <ChevronRightIcon size={15} color={colors.muted} />
+          </PressScale>
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -124,11 +220,34 @@ const styles = StyleSheet.create({
   headline: {
     fontSize: 22,
   },
+  scrollContent: {
+    paddingBottom: 32,
+  },
   sectionLabel: {
     fontSize: 13,
     marginHorizontal: 24,
     marginBottom: 8,
     marginTop: 4,
+  },
+  sectionLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 24,
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  sectionLabelText: {
+    fontSize: 13,
+  },
+  devBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  devBadgeText: {
+    fontSize: 10.5,
+    letterSpacing: 0.3,
   },
   card: {
     marginHorizontal: 24,

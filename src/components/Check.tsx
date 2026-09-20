@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '../theme/ThemeContext';
 import { CheckIcon } from '../icons/Icons';
 import PressScale from './PressScale';
@@ -52,6 +53,13 @@ export default function Check({
       Animated.spring(bounce, { toValue: 1, friction: 6, tension: 220, useNativeDriver: true }).start();
       burst.setValue(0);
       Animated.timing(burst, { toValue: 1, duration: 360, useNativeDriver: true }).start();
+      // A small physical "you did it" beat alongside the visual one —
+      // only on completing, not on undoing, and only from a real user tap
+      // (see the `wasDone` guard above, which this whole block already sits
+      // behind — this never fires for a task that arrives already done,
+      // e.g. switching days). Fire-and-forget: no haptics hardware, no
+      // permission, and no web support are all silent no-ops, never errors.
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } else {
       bounce.setValue(1);
       burst.setValue(1);

@@ -2,17 +2,23 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { androidTextFix, fonts } from '../theme/fonts';
-import { CheckIcon, PlusMinusEmptyIcon } from '../icons/Icons';
+import { CheckIcon, PlusIcon, PlusMinusEmptyIcon } from '../icons/Icons';
+import PressScale from './PressScale';
 import FadeInUp from './FadeInUp';
 
 type Props = {
   icon: 'plus' | 'check';
   title: string;
   subtitle: string;
+  // An optional follow-up CTA, rendered as part of the same centered block
+  // rather than a separate full-width button below it — keeps the empty
+  // state reading as one designed unit instead of "icon block + unrelated
+  // rectangle."
+  action?: { label: string; onPress: () => void };
 };
 
-export default function EmptyState({ icon, title, subtitle }: Props) {
-  const { colors } = useTheme();
+export default function EmptyState({ icon, title, subtitle, action }: Props) {
+  const { colors, radius, shadowCard } = useTheme();
   return (
     <FadeInUp duration={280}>
       <View style={styles.wrap}>
@@ -25,6 +31,16 @@ export default function EmptyState({ icon, title, subtitle }: Props) {
         </View>
         <Text style={[styles.title, androidTextFix, { color: colors.ink, fontFamily: fonts.headingSemiBold }]}>{title}</Text>
         <Text style={[styles.sub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>{subtitle}</Text>
+        {action ? (
+          <PressScale
+            scaleTo={0.96}
+            onPress={action.onPress}
+            style={[styles.actionBtn, { backgroundColor: colors.accent, borderRadius: radius.pill }, shadowCard]}
+          >
+            <PlusIcon size={14} color="#fff" />
+            <Text style={[styles.actionText, androidTextFix, { fontFamily: fonts.bodySemiBold }]}>{action.label}</Text>
+          </PressScale>
+        ) : null}
       </View>
     </FadeInUp>
   );
@@ -53,5 +69,17 @@ const styles = StyleSheet.create({
   sub: {
     fontSize: 13.5,
     textAlign: 'center',
+  },
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 22,
+    marginTop: 20,
+  },
+  actionText: {
+    color: '#fff',
+    fontSize: 14.5,
   },
 });

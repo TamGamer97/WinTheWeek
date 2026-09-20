@@ -9,7 +9,6 @@ import EmptyState from '../components/EmptyState';
 import DraggableTaskList from '../components/DraggableTaskList';
 import SlideDayTransition from '../components/SlideDayTransition';
 import PressScale from '../components/PressScale';
-import { PrimaryButton } from '../components/sheet/SheetControls';
 import { CheckIcon, PlusIcon } from '../icons/Icons';
 import { useAppState } from '../state/AppState';
 import { formatDayHeading } from '../utils/date';
@@ -32,10 +31,7 @@ export default function TodayScreen() {
   const dayTasks = tasksFor(todayWeekId, currentDay);
   const doneCount = dayTasks.filter((t) => t.done).length;
   const allDone = dayTasks.length > 0 && doneCount === dayTasks.length;
-  // A day already lived through is read-only — see docs/DECISIONS.md. It
-  // can still show tasks (a *retroactive* schedule change can add one — see
-  // data/schedule.ts's isRetroactiveDay), just never anything added by hand
-  // here.
+  // A day already lived through is fully read-only — see docs/DECISIONS.md.
   const isPastDay = day.iso < todayIso;
 
   // Reuses the same "plan this day" sheet the Week screen's day popup opens
@@ -116,10 +112,12 @@ export default function TodayScreen() {
             isPastDay ? (
               <EmptyState icon="plus" title="Nothing was planned" subtitle="This day has passed" />
             ) : (
-              <>
-                <EmptyState icon="plus" title="Nothing planned" subtitle="Add something, or leave it open" />
-                <PrimaryButton label="Add a routine" onPress={addRoutineToDay} />
-              </>
+              <EmptyState
+                icon="plus"
+                title="Nothing planned"
+                subtitle="Add something, or leave it open"
+                action={{ label: 'Add a routine', onPress: addRoutineToDay }}
+              />
             )
           ) : (
             <>

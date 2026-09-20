@@ -83,20 +83,37 @@ export const dark: Palette = {
 // Each hue is tuned to work as a small dot/spine/icon accent (not as body
 // text): mid-saturation, medium-weight tones in light mode so none of them
 // shout louder than the app's own accent color; lightened counterparts in
-// dark mode for contrast against near-black surfaces. Hues are spaced apart
-// (blue, red, amber, green, violet, pink) so all six stay easy to tell apart
-// at a glance, even as a 4px bar or a 9px dot.
-export type RoutineColorId = 'blue' | 'red' | 'amber' | 'green' | 'violet' | 'pink';
+// dark mode for contrast against near-black surfaces. The 4 newer additions
+// (teal, lime, magenta, slate) sit in the biggest gaps between the original
+// 6 hues so all 10 stay easy to tell apart at a glance, even as a 4px bar or
+// a 9px dot — `slate` is the one deliberately achromatic option, for
+// routines that don't want a "color" at all.
+export type RoutineColorId = 'blue' | 'red' | 'amber' | 'green' | 'teal' | 'lime' | 'violet' | 'magenta' | 'pink' | 'slate';
 
-export const ROUTINE_COLOR_IDS: RoutineColorId[] = ['blue', 'red', 'amber', 'green', 'violet', 'pink'];
+export const ROUTINE_COLOR_IDS: RoutineColorId[] = [
+  'red',
+  'amber',
+  'lime',
+  'green',
+  'teal',
+  'blue',
+  'violet',
+  'magenta',
+  'pink',
+  'slate',
+];
 
 const ROUTINE_COLOR_HEX: Record<RoutineColorId, { light: string; dark: string }> = {
   blue: { light: '#3860E8', dark: '#5A8DEE' },
   red: { light: '#D14B3F', dark: '#FF8A76' },
   amber: { light: '#C97A1E', dark: '#E9A15C' },
   green: { light: '#1B9C85', dark: '#3FC7AE' },
+  teal: { light: '#1C8FA3', dark: '#4DC7DE' },
+  lime: { light: '#6B9E1E', dark: '#9ED14F' },
   violet: { light: '#8354E0', dark: '#A78BFA' },
+  magenta: { light: '#C13584', dark: '#E874B8' },
   pink: { light: '#D9527A', dark: '#EF7FA0' },
+  slate: { light: '#5B6472', dark: '#8B93A3' },
 };
 
 export const DEFAULT_ROUTINE_COLOR: RoutineColorId = 'blue';

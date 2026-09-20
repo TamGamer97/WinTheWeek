@@ -21,10 +21,10 @@ export default function ConfirmDialog() {
     if (confirmRequest) {
       setMounted(true);
       progress.setValue(0);
-      Animated.timing(progress, {
+      Animated.spring(progress, {
         toValue: 1,
-        duration: 220,
-        easing: Easing.out(Easing.cubic),
+        friction: 8,
+        tension: 60,
         useNativeDriver: true,
       }).start();
     } else {
