@@ -134,6 +134,20 @@ New routines record their creation date, and the schedule resolver excludes
 all dates before that boundary. Older saved routines without this field keep
 their existing behavior.
 
+The chosen theme is persisted separately, under `@cadence/theme/v1`
+(`'light'`/`'dark'`), hydrated/saved by `ThemeContext.tsx` itself using the
+same guarded-effect pattern as the routines/onboarding hydration above —
+`ThemeContext` doesn't share a storage key or a provider with `AppState`,
+so it owns its own persistence rather than routing through `AppState`.
+
+Settings' "Reset app data" (`AppState.resetAppData`) is the one place that
+clears storage: `AsyncStorage.clear()` wipes every key (routines,
+onboarding, theme), then in-memory state resets to the exact fresh-install
+shape (empty routines, onboarding flags back to unseen). Since theme lives
+in its own context, the Settings screen calls `setIsDark(false)` itself
+alongside `resetAppData()` rather than `resetAppData` reaching into
+`ThemeContext`.
+
 ## State (`src/state/AppState.tsx`)
 
 One context (`AppStateProvider` / `useAppState()`) owns all app state:
@@ -199,11 +213,28 @@ the app's fixed `zIndex` stack (`BottomSheet` 20, `TaskMenu` 30,
 `ConfirmDialog` 40, `CoachMarkOverlay` 45, `IntroSlides` 50 — highest wins,
 keep new overlays consistent with this order):
 
-- **`IntroSlides.tsx`** — a one-time, full-screen, opaque set of 4 paged
+- **`IntroSlides.tsx`** — a one-time, full-screen, opaque set of 6 paged
   slides (`ScrollView` + `pagingEnabled`, no dependency needed) shown before
   anything else on first launch. Self-contained like `ConfirmDialog` — reads
   its own visibility from `AppState` (`hasHydratedOnboarding && !seenIntro`)
-  rather than being told when to show.
+  rather than being told when to show. Each slide is a short looping GIF of
+  the real app performing one real action (today's checklist, completing a
+  task, the week view, creating a routine, choosing its days, moving one),
+  inside a small device-mockup frame (bezel, notch, home indicator — the
+  same treatment `website/styles.css`'s `.phone-frame` uses), not an
+  illustration or a static screenshot — NN/g's onboarding research found
+  feature-preview screens (especially stats/insights, shown before any real
+  usage exists) read as marketing rather than help, so there's still no
+  "watch your progress" slide; that job belongs to the coach-mark tour's
+  Analytics step below, once there's something to actually show. The GIFs
+  (`assets/onboarding/*.gif`) are converted from the exact same footage the
+  marketing promo video uses (`marketing/video/public/recordings/v2/*.mp4`
+  — real screen recordings of the Expo web build, per
+  `marketing/video/src/story.ts`) via a local `ffmpeg` two-pass
+  palette-encode (see `docs/DECISIONS.md` for why GIF over a video-player
+  dependency) — this is a one-time conversion, not part of any build step,
+  so if a recorded screen changes enough to matter, re-run the conversion
+  against fresh footage rather than hand-editing a GIF.
 - **`CoachMarkOverlay.tsx`** — a 3-step spotlight tour that runs immediately
   after, pointing at the "+" FAB, the Week nav tab, and the header's
   Analytics icon in turn. Unlike the other overlays, this one is
@@ -241,6 +272,15 @@ resolves through) silently fails in a release build. This ref registry
 lives in a plain `useRef` map, not the state object, since registering a
 target shouldn't trigger a re-render of everything reading `AppState`.
 
+**Screen size**: `CoachMarkOverlay` measures its own full-screen root via
+`onLayout` rather than `Dimensions.get('window')`/`useWindowDimensions()` —
+on Android specifically, that API and `measureInWindow` (above) don't
+reliably agree on the window's size/origin, which showed up as the scrim
+not fully covering the screen and the spotlight landing in the wrong place
+(both unreproducible on web, where no such split exists). `onLayout` and
+`measureInWindow` both come from the same native layout tree, so they can't
+disagree — see `docs/DECISIONS.md`.
+
 **Persistence**: `@cadence/onboarding/v1` stores `{ seenIntro,
 seenCoachmarks }`, hydrated/saved with the same guarded
 hydrate-then-save-gated-on-a-flag pattern routines use (see "Persistence and
@@ -269,70 +309,64 @@ written; routines not shown in the dragged list, and every other date, keep
 their existing order untouched. This same component (and the same
 per-day-only write) is reused by the day-planning sheet's list.
 
-## Past days: real history vs. retroactive scheduling
+## Past days are read-only, no exceptions
 
-A real date strictly before `todayIso` is read-only, today itself always
-excepted — *mark done*, *reorder*, *move to another day*, and *manually add
+A real date strictly before `todayIso` is fully locked, today itself always
+excepted — *mark done*, *reorder*, *move to another day*, and *add or remove
 a routine* are all unconditionally blocked for it, regardless of which UI
-path reaches them. The one exception: a day can still show a routine it
-never had, if that's the direct result of creating a routine, or editing an
-existing one's regular days (`defaultDays`), with the day already past when
-the create/edit happened. Such an instance renders exactly like any other
-past task (dimmed, non-completable — the ordinary past-day styling already
-covers this, no separate treatment needed) but, unlike a genuinely
-pre-existing entry, it can still be removed or moved for that one occurrence.
-This is called a *retroactive* instance (`RoutineInstance.retroactive`,
-`data/schedule.ts`'s `isRetroactiveDay()`) and it is never something a user
-picks by hand — only editing/creating a routine's `defaultDays` produces
-one. Analytics (`src/data/analytics.ts`) never counts one, for the same
-reason it must never be completable: it wasn't actually planned in advance.
+path reaches them and regardless of what's already scheduled there. There
+is no exception for a freshly-created or freshly-edited routine, and no way
+to add anything to a past day by hand. `toggleDone`/`reorderRoutinesForDay`
+no-op outright; `toggleRoutineForWeekDay`/`menuRemoveRoutineDay` no-op
+outright; `confirmMoveRoutineDay` blocks if either the source or destination
+date is past. On the UI side: `Check`/`TaskRow` dim and disable the
+checkbox, `DraggableTaskList`'s `locked` prop disables drag/long-press,
+`TaskMenu` hides "Switch day"/"Remove this day", the day-planning sheet
+(`BottomSheet.tsx`'s `useDayContent`) hides its add affordances and
+`ScheduledRoutineRow`'s remove button, and the routine-plan sheet's day rows
+(`sheet/RoutinePlanDayRow.tsx`) disable every past day, picked or not.
+`data/schedule.ts`'s `daysForWeek(routine, weekId)` is a plain, pure
+function — no variant of it ever merges in anything extra for a past date.
 
-**It's derived, not stored.** `isRetroactiveDay(routine, weekId, day, today)`
-is a pure function of the routine's own template (`defaultDays`,
-`defaultDaysHistory`, `createdIso`) — true when the day is past, in the
-*current* `defaultDays`, but the historical per-day resolution (what
-`defaultDaysAt`/`daysForWeek` already used for past-day locking) does *not*
-include it. It deliberately never looks at `routine.schedule`: see
-`docs/DECISIONS.md` for why checking the override there would make removing
-one retroactive day silently turn every *other* retroactive day on the same
-week into a locked one.
+## Regular-day changes: explicit this-week/next-week choice
 
-`daysForWeek(routine, weekId, today?)` gained an optional 3rd argument,
-`{ iso: todayIso, weekId: todayWeekId }` — the *real* current date/week,
-never whatever week is being browsed. Passing it merges in this week's
-retroactive days on top of the historical resolution (only when `weekId`
-really is the current week, and only when there's no explicit `schedule`
-override — an override, however it came to exist, always fully decides the
-week). Every read that should reflect retroactive days (`tasksFor`,
-`pendingRoutines`, the routine-plan sheet's seeding and "planned" counts)
-passes `today`; everything that needs the pure historical record instead —
-analytics, and any check for whether a day was already *real* before some
-in-progress edit — uses the plain 2-arg call and gets exactly today's
-behavior unchanged.
+Creating or editing a routine's regular days (`defaultDays`) shows an
+explicit "This week" / "Next week" toggle at the bottom of the shared
+`ScheduleSection` (`BottomSheet.tsx`), rather than deciding automatically
+and explaining it afterward. "This week" greys out — and the effective
+choice is forced to "next week" — only when it's genuinely impossible:
 
-**Enforcement**: `toggleDone`, `reorderRoutinesForDay` still no-op
-unconditionally for a past date. `confirmMoveRoutineDay` still always
-blocks a past *destination*; its past *source* is blocked unless
-`isRetroactiveDay` is true. `toggleRoutineForWeekDay` and
-`menuRemoveRoutineDay` always block adding to a past day, and only allow
-removing a retroactive one. `confirmRoutinePlan` force-keeps only *real*
-past days (2-arg `daysForWeek`) regardless of what the routine-plan
-picker's selection says; a past day in that picker (`useRoutinePlanContent`)
-can only ever be toggled *off*, never freshly picked — `RoutinePlanDayRow`'s
-`disabled` prop reflects that, its `retroactive` prop drives the "won't
-count" caption. `TaskMenu` gates both "Switch day" and "Remove this day" on
-the same `!isPast || isRetroactive` check. The day-planning sheet
-(`BottomSheet.tsx`'s `useDayContent`) hides its "Add a routine" section
-outright for any past day, and `ScheduledRoutineRow`'s remove button only
-appears for a non-past or retroactive entry.
+- **Creating** (`useAddContent`): any picked day that's already happened
+  this week.
+- **Editing** (`useRoutineEditContent`): only a *newly-added* day (one not
+  already in the routine's existing `defaultDays`) that's already happened
+  this week — an unchanged pre-existing day, even a past one, isn't a
+  conflict, since nothing about it needs to change.
 
-**Past weeks** (`weekId < todayWeekId`, not just a past day within the
-current week) get no planning affordance at all — `WeekScreen.tsx` hides
-the "Not scheduled yet" row entirely when browsing one, which is also the
-only path to the routine-plan sheet, so that's fully closed off too. No
-separate "is this week past" check is needed anywhere else: `isRetroactiveDay`
-is false by construction for any week that isn't the current one, so every
-day in a past week is simply an ordinary locked past day.
+When disabled, a `SheetDescription` line underneath explains why. This
+reuses two fields that already existed for a different reason, rather than
+adding new state — `AppState.tsx`'s `sheetStartsNextWeek` holds only the
+raw stored preference; `confirmAdd`/`confirmRoutineEdit` and the two
+content hooks above each independently fold it together with the same
+conflict check to get the *effective* value (`sheetStartsNextWeek ||
+conflict`):
+
+- **Creating**: `confirmAdd` sets `createdIso` to `nextWeekId` when the
+  effective choice is "next week," otherwise `todayIso` — `daysForWeek`
+  already excludes any date before `createdIso`.
+- **Editing**: `confirmRoutineEdit` appends a `defaultDaysHistory` snapshot
+  of the days being replaced (unchanged mechanism) only when the days
+  actually changed (`sameDayKeySet`, in `utils/date.ts`), with `untilIso`
+  set to `todayIso` ("this week" — `daysForWeek`'s per-day historical
+  resolution, `defaultDaysAt`, still keeps every already-past day of the
+  current week on the old snapshot since `iso < untilIso` only excludes
+  today-onward) or `nextWeekId` ("next week" — the entire current week,
+  past and future days alike, stays on the old snapshot).
+
+There is no confirmation popup for this anymore — the toggle itself is the
+up-front confirmation. (An earlier version of this feature forced every
+edit to next week unconditionally and warned via a `ConfirmDialog` popup
+right before saving; see docs/DECISIONS.md for why that changed.)
 
 ## Month-view calendar (`src/components/MonthCalendar.tsx`)
 
@@ -463,3 +497,17 @@ displays as `0.0.1` in Settings.
 
 There is no CI and no automated test suite; see `AGENTS.md` for how to
 verify a change in this repo.
+
+## Promotional video
+
+`marketing/video/` is an independent Remotion project with its own package
+manifest, lockfile, and TypeScript check. Its landscape film uses
+actual recordings of the Expo web export, the existing Play Store icon,
+and the app's bundled fonts. `src/story.ts` inside that project controls
+scene copy, timing, and replaceable footage. Capture scripts operate an
+isolated browser through the app UI with illustrative historical data for
+the Analytics example; they do not change the app's production seed data.
+Device framing and the user-supplied Waves soundtrack are separate from the
+recorded application content.
+See `marketing/video/README.md` for rendering and native Android replacement
+recordings. The root app TypeScript check excludes this separate project.

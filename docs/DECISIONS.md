@@ -228,63 +228,82 @@ so Android can finish the activity normally.
 ---
 
 **Decision:** Every real date strictly before `todayIso` blocks `toggleDone`,
-`reorderRoutinesForDay` unconditionally, `confirmMoveRoutineDay` rejects a
-past *destination* outright, and manually adding a routine to a past day
-(`toggleRoutineForWeekDay`'s add branch) is always blocked, regardless of
-which UI path calls them. The one carve-out: a past day *can* show a
-routine it never had, and that specific instance can be removed or moved
-(`confirmMoveRoutineDay`'s past-*source* guard, `menuRemoveRoutineDay`), but
-only when it's *retroactive* — `data/schedule.ts`'s `isRetroactiveDay()`,
-true when the day is past, in the routine's current `defaultDays`, but the
-routine's edit history says it wasn't there before. This status is
-computed, not stored: no field on `Routine` tracks it.
+`reorderRoutinesForDay`, adding or removing a routine on that day
+(`toggleRoutineForWeekDay`, `menuRemoveRoutineDay`), and moving a task to or
+from it (`confirmMoveRoutineDay`) — unconditionally, with no exceptions,
+regardless of which UI path calls them or what's already scheduled there.
 
-**Reason:** Two revisions to find this. The original version rejected any
-mutation of a past date outright. That version's replacement let a user
-manually add a routine to an arbitrary past day by hand (a stored
-`Routine.placeholderDates` map), on the reasoning that someone should be
-able to log something onto a past day after the fact without it faking
-progress — but that wasn't actually the need: the real gap was that
-creating a routine, or editing one's regular days, with a day already past
-this week, silently excluded that day (via `createdIso`/`defaultDaysHistory`)
-instead of showing it. Manual per-day adding was the wrong mechanism for
-that and is gone; the schedule/creation flow itself now produces the
-retroactive instance automatically, with the same non-completable,
-analytics-excluded, still-removable shape the placeholder had. The Week
-screen's `goToPrevWeek` has no lower bound, so every past week is
-reachable — `isRetroactiveDay` takes the real current week explicitly
-(never whatever week is being browsed) so this can never leak into a
-genuinely past week no matter which UI path calls it.
+**Reason:** Third time settling this. The original version already blocked
+everything unconditionally. A revision after that let a routine's own
+schedule changes retroactively populate an already-past day mid-week — a
+freshly-created or freshly-edited routine could make a past day in the
+current week show a "retroactive" instance (`isRetroactiveDay`,
+`RoutineInstance.retroactive`) that was visible and removable/movable even
+though it was never actually planned in advance. That turned out to be more
+machinery, and more exceptions to a rule that's supposed to be simple and
+trustworthy, than the problem needed. The actual need was narrower: when a
+routine's usual days include one that's already passed this week, don't
+apply that day-set retroactively — just start the whole schedule next week
+instead (see the decision below). Once schedule changes never touch the
+current week at all, there's no scenario left where a past day would ever
+need an exception, so the lock goes back to having none. The Week screen's
+`goToPrevWeek` has no lower bound, so every past week is reachable, which is
+why this has to be enforced in `AppState`, not just hidden in the UI for
+the currently-browsed week.
 
-**Why `isRetroactiveDay` never looks at `routine.schedule`:** any toggle
-already always freezes a week into an explicit `schedule[weekId]` override
-(pre-existing behavior). If retroactive status were read from that override,
-removing *one* retroactive day from a week with two would silently turn the
-other one "real" afterward — the override can't tell "was this real or
-retroactive in origin" apart once it exists, since it's just a flat list of
-day keys. Deriving retroactive status purely from the routine's *template*
-(`defaultDays`/`defaultDaysHistory`/`createdIso`) instead keeps each day's
-status stable no matter how many other edits touch that week's override.
+**Consequence:** Guard any new day-specific mutation in `AppState` with a
+plain, unconditional `if (iso < todayIso) return;`-style check — do not
+reintroduce a carve-out for "this instance is different because of how it
+got there." If a future feature seems to need one, prefer changing *when*
+the schedule change takes effect (see below) over relaxing this lock again.
 
-**Consequence:** Guard any new day-specific mutation in `AppState` first —
-decide whether it's always-blocked for a past date (like `toggleDone`) or
-retroactive-aware (like `toggleRoutineForWeekDay`) — rather than relying on
-the UI alone; the state layer is the source of truth. See
-`docs/PROJECT.md`'s "Past days: real history vs. retroactive scheduling"
-for the full guard list and the UI side of this. Don't reintroduce a manual
-"add to any past day" affordance, and don't make `isRetroactiveDay` consult
-`routine.schedule` — both were tried and both are the specific mistakes
-this decision exists to avoid.
-
-**`confirmRoutinePlan` still does *not* naively filter past days out of
+**`confirmRoutinePlan` still does *not* filter past days out of
 `sheetMultiDays` before saving — that filter was tried once and was a bug,
-not a safety net.** It force-keeps only *real* past days (2-arg, pure-
-historical `daysForWeek`) regardless of what the picker sent; everything
-else in the picker's selection is trusted, since `useRoutinePlanContent`'s
-day rows only ever let a past day be toggled *off*, never freshly picked
-(`sheet/RoutinePlanDayRow.tsx`'s `disabled` prop). Don't go back to
-filtering "past days" out wholesale at save time — that's what silently
-un-scheduled real, already-locked commitments before.
+not a safety net.** `useRoutinePlanContent`'s day rows disable every past
+day outright (picked or not), so `sheetMultiDays` can be trusted and saved
+as-is; filtering "past days" out at save time is what silently un-scheduled
+real, already-locked commitments before.
+
+---
+
+**Decision:** Whether a routine's regular days take effect "this week" or
+"next week" is an explicit choice in the add/edit form's UI (a segmented
+toggle at the bottom of `ScheduleSection`, in `BottomSheet.tsx`), not an
+automatic rule explained after the fact by a confirmation popup. "This
+week" greys out — and the effective choice is forced to "next week" — only
+when it's actually impossible: for creation, any picked day already past
+this week; for an edit, only a *newly-added* day (not already in the
+routine's existing `defaultDays`) that's already past this week. No new
+field was added to represent the outcome: `confirmRoutineEdit`'s existing
+`defaultDaysHistory` snapshot uses either `todayIso` or `nextWeekId` as its
+`untilIso` boundary depending on the effective choice, and `confirmAdd`
+sets the existing `createdIso` the same way.
+
+**Reason:** An earlier version of this forced every edit to next week
+unconditionally and a fresh creation to next week only on conflict, each
+explained by a confirmation popup right before saving. Product feedback was
+that this should instead be a visible, proactive choice up front — seeing
+and picking "This week" / "Next week" while still filling out the form,
+rather than being told the consequence in a popup after tapping Save. Once
+the choice is explicit and up front, a confirmation popup restating it back
+is redundant, so `ConfirmRequest.icon`'s `'calendar'` variant and both
+`requestConfirm(...)` call sites were removed along with it. Picking "This
+week" on an *edit* can therefore now apply mid-week (from today onward) —
+a deliberate reversal of the previous "never mid-week" rule, made safe by
+`untilIso: todayIso` still keeping every already-past day of the current
+week on the old snapshot (`defaultDaysAt`'s `iso < untilIso` check) — the
+past-day lock itself is untouched, only *which day the new template starts
+applying from* is now the person's choice instead of always next Monday.
+
+**Consequence:** `AppState.tsx`'s `sheetStartsNextWeek` holds the raw
+stored preference; both `confirmAdd` and `confirmRoutineEdit`, and the
+`useAddContent`/`useRoutineEditContent` hooks that render the toggle, each
+independently fold in the same conflict check to get the *effective* value
+— don't read `sheetStartsNextWeek` alone as "what will actually happen."
+Don't compute "next Monday" ad hoc elsewhere — reuse `AppState.tsx`'s
+`nextWeekId` (`isoDate(addDays(parseISODate(todayWeekId), 7))`). Don't
+reintroduce a same-instant confirmation popup for this — the toggle itself
+is the confirmation.
 
 ---
 
@@ -383,3 +402,86 @@ is "the tour is over," not "the tour is still owed to them later."
 mount effect's unmount cleanup, so `completeCoachmarks()` fires exactly
 once regardless of which path triggers it. Don't add a "resume where it
 left off" mode without deciding this trade-off again on purpose.
+
+---
+
+**Decision:** `CoachMarkOverlay` sizes its full-screen SVG scrim/spotlight
+from its own `onLayout` measurement, not `Dimensions.get('window')` (nor
+the equivalent `useWindowDimensions()` hook).
+
+**Reason:** Reported as an Android-only bug: the dark scrim left parts of
+the screen undimmed — not reproducible on web. The component sized its SVG
+canvas from a module-scope `Dimensions.get('window')` snapshot; on Android
+specifically that can report a shorter window than the true screen
+(edge-to-edge system bars aren't accounted for consistently), undersizing
+the SVG and leaving a strip of it uncovered. `onLayout` measures the
+component's own actual rendered size directly, so it can't be wrong the
+way a separate, platform-inconsistent dimensions API can.
+
+**Consequence:** Don't reintroduce `Dimensions.get('window')` /
+`useWindowDimensions()` as the source of truth for this component's own
+screen size — measure the actual rendered root instead. Note this fixed
+the scrim's *coverage*, not the spotlight's *position* — that was a
+separate bug, see below.
+
+---
+
+**Decision:** The spotlight hole's corner radius is computed per step
+(`Math.min(width, height) / 2` on the padded target rect — a circle for a
+square-ish target, a pill for a wide one) instead of a single fixed
+constant. Measuring a coach target also now waits two `requestAnimationFrame`
+callbacks before calling `measureInWindow`.
+
+**Reason:** Still reported as an Android-only bug after the `onLayout`
+sizing fix above: the spotlight highlighted a visibly wrong, offset
+position around the "+" FAB, with a rounded-square hole sitting off to one
+side of the actual round button rather than centered on it — not
+reproducible on web. Two compounding causes: (1) a fixed corner radius on
+the hole never matched a circular target's own roundness, which alone
+would look like a mismatched shape even if perfectly centered; (2) the
+first measurement fires the instant this overlay mounts, which is itself
+the instant the intro screen finishes and this one takes over — on a
+slower Android device, `measureInWindow` called at exactly that transition
+boundary can win a race against the target's own layout still settling and
+return a stale position. Waiting two animation frames first ensures at
+least one full native layout/commit pass has actually happened before
+trusting the measurement.
+
+**Consequence:** Don't go back to a fixed hole radius — derive it from the
+measured target every time, the same way the padding already is. Don't
+remove the two-frame wait from `measureStep` to "simplify" it, and apply
+the same wait if another spot ever measures a target immediately on mount
+rather than in response to a stable, already-settled screen.
+
+---
+
+**Decision:** `IntroSlides.tsx`'s onboarding slides show looping GIFs of
+real app footage instead of static screenshots or an embedded video player.
+The GIFs are converted, one time via a local `ffmpeg` binary (not as part
+of any app build step), from the marketing project's own real screen
+recordings (`marketing/video/public/recordings/v2/*.mp4`) into
+`assets/onboarding/*.gif`.
+
+**Reason:** The app has an explicit minimal-dependency stance (see the
+PanResponder/`Animated`-only decision above) — adding `expo-video`/`expo-av`
+just to play a handful of few-second onboarding clips is real dependency
+weight for something React Native's existing `Image` component already
+does for free: it plays animated GIFs on both platforms from a bundled
+asset exactly like the PNGs this replaced. Reusing the marketing project's
+existing real-interaction recordings (rather than re-capturing new footage
+inside the app itself) means the in-app tour and the public promo video
+demonstrate literally identical interactions, and needed no new tooling —
+`ffmpeg-static`'s binary was already a devDependency of `marketing/video`.
+
+**Consequence:** Don't add a video-playback dependency for this — if a
+future onboarding need genuinely requires real video (audio, seeking,
+longer clips), that's a deliberate trade-off to make on purpose, not a
+default reach. If a demonstrated screen changes enough that its GIF goes
+stale, regenerate it from fresh footage the same way (two-pass palette
+encode: `palettegen` then `paletteuse`, scaled to ~360px wide, ~15fps —
+keeps each clip well under 1MB) rather than hand-editing the GIF or
+re-adding static screenshots for just that one slide.
+
+---
+
+**Decision:** V4 Icon is the latest use this as the main icon
