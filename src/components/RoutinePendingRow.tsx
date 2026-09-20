@@ -15,8 +15,8 @@ import { useAppState } from '../state/AppState';
 // the only extra question this state has: how many days still need planning.
 export default function RoutinePendingRow({ routine, weekId }: { routine: Routine; weekId: string }) {
   const { colors, radius, isDark } = useTheme();
-  const { openRoutinePlanner, todayIso, todayWeekId } = useAppState();
-  const planned = daysForWeek(routine, weekId, { iso: todayIso, weekId: todayWeekId }).length;
+  const { openRoutinePlanner } = useAppState();
+  const planned = daysForWeek(routine, weekId).length;
   const remaining = routine.timesPerWeek - planned;
   const complete = remaining <= 0;
   const hex = routineColorHex(routine.color, isDark);

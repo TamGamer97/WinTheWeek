@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from 'react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { androidTextFix, fonts } from '../../theme/fonts';
 import { ROUTINE_COLOR_IDS, routineColorHex } from '../../theme/colors';
@@ -66,22 +66,24 @@ export function TaskColorPicker({ value, onChange }: { value: string; onChange: 
   return (
     <View style={styles.colorPicker}>
       <Text style={[styles.colorLabel, androidTextFix, { color: colors.inkSoft, fontFamily: fonts.bodyBold }]}>Color</Text>
-      <View style={styles.colorRow}>
-        {ROUTINE_COLOR_IDS.map((id) => {
-          const hex = routineColorHex(id, isDark);
-          return (
-            <PressScale key={id} scaleTo={0.9} onPress={() => onChange(id)} style={styles.colorButton}>
-              <View
-                style={[
-                  styles.colorSwatch,
-                  { backgroundColor: hex },
-                  value === id && { borderColor: colors.ink, borderWidth: 2, transform: [{ scale: 1.12 }] },
-                ]}
-              />
-            </PressScale>
-          );
-        })}
-      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View style={styles.colorRow}>
+          {ROUTINE_COLOR_IDS.map((id) => {
+            const hex = routineColorHex(id, isDark);
+            return (
+              <PressScale key={id} scaleTo={0.9} onPress={() => onChange(id)} style={styles.colorButton}>
+                <View
+                  style={[
+                    styles.colorSwatch,
+                    { backgroundColor: hex },
+                    value === id && { borderColor: colors.ink, borderWidth: 2, transform: [{ scale: 1.12 }] },
+                  ]}
+                />
+              </PressScale>
+            );
+          })}
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -158,11 +160,13 @@ export function PrimaryButton({
   onPress,
   disabled,
   destructive,
+  style,
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
   destructive?: boolean;
+  style?: StyleProp<ViewStyle>;
 }) {
   const { colors, radius, shadowCard } = useTheme();
   return (
@@ -172,19 +176,43 @@ export function PrimaryButton({
       onPress={onPress}
       style={[
         styles.primaryBtn,
-        { backgroundColor: destructive ? colors.danger : colors.accent, borderRadius: radius.md, opacity: disabled ? 0.5 : 1 },
-        shadowCard,
+        {
+          backgroundColor: disabled ? colors.line : destructive ? colors.danger : colors.accent,
+          borderRadius: radius.md,
+        },
+        disabled ? null : shadowCard,
+        style,
       ]}
     >
-      <Text style={[styles.primaryBtnText, androidTextFix, { fontFamily: fonts.bodySemiBold }]}>{label}</Text>
+      <Text
+        style={[
+          styles.primaryBtnText,
+          androidTextFix,
+          { color: disabled ? colors.muted : '#fff', fontFamily: fonts.bodySemiBold },
+        ]}
+      >
+        {label}
+      </Text>
     </PressScale>
   );
 }
 
-export function GhostButton({ label, onPress }: { label: string; onPress: () => void }) {
-  const { colors } = useTheme();
+export function GhostButton({
+  label,
+  onPress,
+  style,
+}: {
+  label: string;
+  onPress: () => void;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const { colors, radius } = useTheme();
   return (
-    <PressScale scaleTo={0.98} onPress={onPress} style={styles.ghostBtn}>
+    <PressScale
+      scaleTo={0.98}
+      onPress={onPress}
+      style={[styles.ghostBtn, { borderColor: colors.lineStrong, borderRadius: radius.md }, style]}
+    >
       <Text style={[styles.ghostBtnText, androidTextFix, { color: colors.inkSoft, fontFamily: fonts.bodyBold }]}>{label}</Text>
     </PressScale>
   );
@@ -299,18 +327,27 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   primaryBtnText: {
-    color: '#fff',
     fontSize: 15,
+    // An explicit lineHeight (paired with androidTextFix above) is what
+    // actually keeps this centered on Android — see SegmentedToggle.tsx for
+    // the same pairing. Without it, textAlignVertical:'center' alone isn't
+    // reliable: Android still lays the line out using the font's own
+    // (asymmetric, for Manrope) intrinsic metrics when no lineHeight is set.
+    lineHeight: 18,
   },
   ghostBtn: {
     width: '100%',
-    paddingVertical: 13,
+    paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,
+    borderWidth: 1.5,
   },
   ghostBtnText: {
     fontSize: 14,
+    // See primaryBtnText above — the same fix, kept consistent since this
+    // button sits right next to it in the sheet footer.
+    lineHeight: 17,
   },
   stepperRow: {
     flexDirection: 'row',

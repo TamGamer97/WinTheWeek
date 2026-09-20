@@ -13,16 +13,12 @@ import { useAppState } from '../state/AppState';
 // from routineColorHex(), so this line, the day popup, and Manage Routines
 // never disagree about what color a task is. The comma between titles
 // stays a neutral, muted tone so it reads as punctuation rather than
-// picking up whichever task's color happens to be nearest.
-function TaskInline({
-  tasks,
-  onToggle,
-  todayIso,
-}: {
-  tasks: RoutineInstance[];
-  onToggle: (id: string) => void;
-  todayIso: string;
-}) {
+// picking up whichever task's color happens to be nearest. Read-only, on
+// purpose — this whole row's own tap target opens the day-planning sheet
+// (see WeekRow below), so a task name here doing something else entirely
+// (marking it done) would be a confusing nested tap target; completing a
+// task is a Today-screen action.
+function TaskInline({ tasks, todayIso }: { tasks: RoutineInstance[]; todayIso: string }) {
   const { colors, isDark } = useTheme();
 
   return (
@@ -32,12 +28,12 @@ function TaskInline({
       style={[styles.taskLine, androidTextFix, { fontFamily: fonts.bodyMedium }]}
     >
       {tasks.map((t, i) => {
-        // A past day's tasks are a read-only record — no tap-to-toggle, and
-        // dimmed (rather than the done styling, which would misleadingly
-        // read as "completed") so an untouched past task doesn't look live.
+        // A past day's tasks are a read-only record — dimmed (rather than
+        // the done styling, which would misleadingly read as "completed")
+        // so an untouched past task doesn't look live.
         const locked = String(t.id).split('::')[1] < todayIso;
         return (
-          <Text key={t.id} onPress={locked ? undefined : () => onToggle(String(t.id))}>
+          <Text key={t.id}>
             <Text
               style={{
                 color: t.done ? colors.muted : routineColorHex(t.color, isDark),
@@ -57,7 +53,7 @@ function TaskInline({
 
 function WeekRow({ day, weekId, index }: { day: DayInfo; weekId: string; index: number }) {
   const { colors, radius, shadowCard } = useTheme();
-  const { tasksFor, toggleDone, openDaySheet, todayIso } = useAppState();
+  const { tasksFor, openDaySheet, todayIso } = useAppState();
   const isToday = day.iso === todayIso;
   const dayTasks = tasksFor(weekId, day.key);
 
@@ -113,7 +109,7 @@ function WeekRow({ day, weekId, index }: { day: DayInfo; weekId: string; index: 
           >
             {day.label}
           </Text>
-          {dayTasks.length ? <TaskInline tasks={dayTasks} onToggle={toggleDone} todayIso={todayIso} /> : null}
+          {dayTasks.length ? <TaskInline tasks={dayTasks} todayIso={todayIso} /> : null}
         </View>
       </PressScale>
     </FadeInUp>

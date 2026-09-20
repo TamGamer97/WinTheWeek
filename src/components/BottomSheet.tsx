@@ -15,12 +15,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
 import { fonts } from '../theme/fonts';
 import { useAppState } from '../state/AppState';
-import { daysForWeek, isRetroactiveDay } from '../data/schedule';
+import { daysForWeek } from '../data/schedule';
 import { routineColorHex } from '../theme/colors';
 import { DayKey } from '../data/types';
 import { DAY_KEYS, addDays, dayMeta, formatDayHeading, isoDate, isoForWeekDay, parseISODate, weekIdFor } from '../utils/date';
 import { MultiDayPicker, RoutineDayPickerExcluding } from './sheet/DayOptions';
 import RoutinePlanDayRow from './sheet/RoutinePlanDayRow';
+import SegmentedToggle from './SegmentedToggle';
 import {
   GhostButton,
   PrimaryButton,
@@ -49,6 +50,16 @@ const FULL_PAGE_MODES = new Set(['add', 'routineEdit']);
 // every time it repeats than "Go to the gym" does. These rotate through
 // the Name field's placeholder to nudge that without a wall of copy.
 const ROUTINE_NAME_EXAMPLES = ['Gym', 'Reading', 'Meditation', 'Journaling'];
+
+// What every sheet-mode content hook below returns — `footer` is only ever
+// populated by the full-page add/edit forms (see SheetBody), everything
+// else leaves it undefined and keeps its actions stacked inside `body`.
+type SheetContent = {
+  title: string;
+  context: string;
+  body: React.ReactNode;
+  footer?: React.ReactNode;
+};
 
 const { height: SCREEN_H } = Dimensions.get('window');
 
@@ -105,15 +116,7 @@ export default function BottomSheet() {
             },
           ]}
         >
-          {isFullPage ? (
-            <View style={styles.pageHeader}>
-              <IconButton onPress={closeSheet}>
-                <CloseIcon size={16} color={colors.ink} />
-              </IconButton>
-            </View>
-          ) : (
-            <View style={[styles.grabber, { backgroundColor: colors.lineStrong }]} />
-          )}
+          {isFullPage ? null : <View style={[styles.grabber, { backgroundColor: colors.lineStrong }]} />}
           <SheetBody isFullPage={isFullPage} />
         </Animated.View>
       </KeyboardAvoidingView>
@@ -123,7 +126,7 @@ export default function BottomSheet() {
 
 function SheetBody({ isFullPage }: { isFullPage: boolean }) {
   const { colors } = useTheme();
-  const { sheetMode } = useAppState();
+  const { sheetMode, closeSheet } = useAppState();
 
   // Rules-of-hooks safe: every content hook runs on every render (each is
   // cheap — plain useState/useContext reads), and we simply pick the one
@@ -137,7 +140,7 @@ function SheetBody({ isFullPage }: { isFullPage: boolean }) {
   const moveRoutineDay = useMoveRoutineDayContent();
   const monthView = useMonthViewContent();
 
-  const { title, context, body } =
+  const { title, context, body, footer } =
     sheetMode === 'add'
       ? add
       : sheetMode === 'routineManage'
@@ -152,13 +155,25 @@ function SheetBody({ isFullPage }: { isFullPage: boolean }) {
       ? moveRoutineDay
       : sheetMode === 'monthView'
       ? monthView
-      : { title: '', context: '', body: null as React.ReactNode };
+      : { title: '', context: '', body: null as React.ReactNode, footer: null as React.ReactNode };
 
   return (
     <>
-      <Text style={[styles.title, isFullPage && styles.pageTitle, { color: colors.ink, fontFamily: fonts.headingSemiBold }]}>
-        {title}
-      </Text>
+      {isFullPage ? (
+        <View style={styles.pageHeaderRow}>
+          <Text
+            numberOfLines={1}
+            style={[styles.pageTitle, { color: colors.ink, fontFamily: fonts.headingSemiBold }]}
+          >
+            {title}
+          </Text>
+          <IconButton onPress={closeSheet}>
+            <CloseIcon size={16} color={colors.ink} />
+          </IconButton>
+        </View>
+      ) : (
+        <Text style={[styles.title, { color: colors.ink, fontFamily: fonts.headingSemiBold }]}>{title}</Text>
+      )}
       {/* A sheet's context line is always exactly one clause — it truncates
           with an ellipsis rather than ever wrapping into a ragged second
           line, and the copy below is kept short enough that in practice it
@@ -175,11 +190,12 @@ function SheetBody({ isFullPage }: { isFullPage: boolean }) {
       >
         {body}
       </ScrollView>
+      {isFullPage && footer ? <View style={styles.footerRow}>{footer}</View> : null}
     </>
   );
 }
 
-function useRoutineManageContent() {
+function useRoutineManageContent(): SheetContent {
   const { routines, openAdd, openRoutineEdit, deleteRoutine, requestConfirm, closeSheet } = useAppState();
   const confirmDelete = (routine: (typeof routines)[number]) =>
     requestConfirm({
@@ -228,21 +244,46 @@ function ScheduleSection({
   selectedDays,
   max,
   onToggleDay,
+  startsNextWeek,
+  onChangeStartsNextWeek,
+  thisWeekDisabled,
+  disabledReason,
 }: {
   selectedDays: DayKey[];
   max: number;
   onToggleDay: (key: DayKey) => void;
+  // The *effective* choice — already folded together with any conflict, so
+  // the toggle reflects a forced "next week" even when the stored
+  // preference hasn't actually changed. See docs/DECISIONS.md.
+  startsNextWeek: boolean;
+  onChangeStartsNextWeek: (v: boolean) => void;
+  // True when a selected regular day has already passed this week, making
+  // "This week" impossible — the option greys out and `disabledReason`
+  // explains why underneath.
+  thisWeekDisabled: boolean;
+  disabledReason?: string;
 }) {
   return (
     <View style={styles.scheduleSection}>
       <SheetLabel>Regular days</SheetLabel>
       <MultiDayPicker selected={selectedDays} max={max} onToggle={onToggleDay} />
       <SheetHint>Select the days this usually happens.</SheetHint>
+
+      <SheetLabel>Start</SheetLabel>
+      <SegmentedToggle<'this' | 'next'>
+        options={[
+          { value: 'this', label: 'This week', disabled: thisWeekDisabled },
+          { value: 'next', label: 'Next week' },
+        ]}
+        value={startsNextWeek ? 'next' : 'this'}
+        onChange={(v) => onChangeStartsNextWeek(v === 'next')}
+      />
+      {thisWeekDisabled && disabledReason ? <SheetDescription>{disabledReason}</SheetDescription> : null}
     </View>
   );
 }
 
-function useAddContent() {
+function useAddContent(): SheetContent {
   const {
     sheetRoutineFreq,
     sheetTaskColor,
@@ -251,10 +292,27 @@ function useAddContent() {
     sheetMultiDays,
     sheetMultiMax,
     toggleMultiDay,
+    sheetStartsNextWeek,
+    setSheetStartsNextWeek,
     confirmAdd,
     closeSheet,
+    todayIso,
+    todayWeekId,
   } = useAppState();
   const [text, setText] = useState('');
+
+  // A picked regular day that's already happened this week rules out "This
+  // week" outright — see docs/DECISIONS.md.
+  const pastPicked = sheetMultiDays.filter((d) => isoForWeekDay(todayWeekId, d) < todayIso);
+  const thisWeekDisabled = pastPicked.length > 0;
+  const disabledReason = thisWeekDisabled
+    ? pastPicked.length === 1
+      ? `${dayMeta(pastPicked[0]).label} already happened this week, so this can only start next week.`
+      : 'Some of these days already happened this week, so this can only start next week.'
+    : undefined;
+  const effectiveStartsNextWeek = sheetStartsNextWeek || thisWeekDisabled;
+
+  const handleCreate = () => confirmAdd(text, sheetTaskColor);
 
   return {
     title: 'New routine',
@@ -272,11 +330,18 @@ function useAddContent() {
           selectedDays={sheetMultiDays}
           max={sheetMultiMax}
           onToggleDay={toggleMultiDay}
+          startsNextWeek={effectiveStartsNextWeek}
+          onChangeStartsNextWeek={setSheetStartsNextWeek}
+          thisWeekDisabled={thisWeekDisabled}
+          disabledReason={disabledReason}
         />
-
-        <PrimaryButton label="Create routine" onPress={() => confirmAdd(text, sheetTaskColor)} disabled={!text.trim()} />
-        <GhostButton label="Cancel" onPress={closeSheet} />
       </View>
+    ),
+    footer: (
+      <>
+        <GhostButton label="Cancel" onPress={closeSheet} style={styles.footerBtn} />
+        <PrimaryButton label="Create routine" onPress={handleCreate} disabled={!text.trim()} style={styles.footerBtn} />
+      </>
     ),
   };
 }
@@ -284,7 +349,7 @@ function useAddContent() {
 // Edits the routine itself — name, color, weekly frequency, and its
 // optional default template — reached from Manage Routines. Never touches
 // any specific week's actual plan; those live only in useRoutinePlanContent.
-function useRoutineEditContent() {
+function useRoutineEditContent(): SheetContent {
   const {
     routines,
     sheetRoutineId,
@@ -295,8 +360,12 @@ function useRoutineEditContent() {
     sheetMultiDays,
     sheetMultiMax,
     toggleMultiDay,
+    sheetStartsNextWeek,
+    setSheetStartsNextWeek,
     confirmRoutineEdit,
     closeSheet,
+    todayIso,
+    todayWeekId,
   } = useAppState();
   const r = routines.find((r) => r.id === sheetRoutineId);
   const [text, setText] = useState(r?.title ?? '');
@@ -312,6 +381,23 @@ function useRoutineEditContent() {
     // Only when the *routine being edited* changes — not on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheetRoutineId]);
+
+  // A newly-added regular day (not already in this routine's days) that's
+  // already happened this week rules out "This week" outright — an
+  // unchanged pre-existing day, even a past one, isn't a conflict since
+  // nothing about it needs to change. See docs/DECISIONS.md.
+  const newlyAddedPastDays = r
+    ? sheetMultiDays.filter((d) => !r.defaultDays.includes(d) && isoForWeekDay(todayWeekId, d) < todayIso)
+    : [];
+  const thisWeekDisabled = newlyAddedPastDays.length > 0;
+  const disabledReason = thisWeekDisabled
+    ? newlyAddedPastDays.length === 1
+      ? `${dayMeta(newlyAddedPastDays[0]).label} already happened this week, so this can only start next week.`
+      : 'Some of these days already happened this week, so this can only start next week.'
+    : undefined;
+  const effectiveStartsNextWeek = sheetStartsNextWeek || thisWeekDisabled;
+
+  const handleSave = () => confirmRoutineEdit(text);
 
   return {
     title: 'Edit routine',
@@ -329,11 +415,18 @@ function useRoutineEditContent() {
           selectedDays={sheetMultiDays}
           max={sheetMultiMax}
           onToggleDay={toggleMultiDay}
+          startsNextWeek={effectiveStartsNextWeek}
+          onChangeStartsNextWeek={setSheetStartsNextWeek}
+          thisWeekDisabled={thisWeekDisabled}
+          disabledReason={disabledReason}
         />
-
-        <PrimaryButton label="Save changes" onPress={() => confirmRoutineEdit(text)} disabled={!text.trim()} />
-        <GhostButton label="Cancel" onPress={closeSheet} />
       </View>
+    ),
+    footer: (
+      <>
+        <GhostButton label="Cancel" onPress={closeSheet} style={styles.footerBtn} />
+        <PrimaryButton label="Save changes" onPress={handleSave} disabled={!text.trim()} style={styles.footerBtn} />
+      </>
     ),
   };
 }
@@ -347,11 +440,9 @@ function useRoutineEditContent() {
 // week when opened from the Today screen's quick add — never assumed from
 // context, so this never accidentally edits the wrong one.
 //
-// A day that's already passed is read-only — no adding, and removing only
-// ever works for a *retroactive* entry (one that only landed here because
-// of a schedule change made after the day itself had already passed), never
-// a genuinely real one. See docs/DECISIONS.md.
-function useDayContent() {
+// A day that's already passed is fully read-only — no adding, no removing,
+// no exceptions. See docs/DECISIONS.md.
+function useDayContent(): SheetContent {
   const { colors } = useTheme();
   const {
     sheetDayKey,
@@ -363,7 +454,6 @@ function useDayContent() {
     openAdd,
     closeSheet,
     todayIso,
-    todayWeekId,
   } = useAppState();
   const isUnsched = sheetDayKey === 'unscheduled';
   const wId = sheetDayWeekId ?? '';
@@ -371,7 +461,6 @@ function useDayContent() {
   const d = isUnsched ? null : dayMeta(sheetDayKey as DayKey);
   const dayIso = dayKey ? isoDate(addDays(parseISODate(wId), DAY_KEYS.indexOf(dayKey))) : '';
   const isPast = dayIso !== '' && dayIso < todayIso;
-  const today = { iso: todayIso, weekId: todayWeekId };
 
   let listItems: React.ReactNode;
   if (isUnsched) {
@@ -384,7 +473,7 @@ function useDayContent() {
   } else {
     const key = dayKey as DayKey;
     const scheduled = tasksFor(wId, key);
-    const available = routines.filter((r) => !daysForWeek(r, wId, today).includes(key));
+    const available = routines.filter((r) => !daysForWeek(r, wId).includes(key));
 
     listItems = (
       <>
@@ -399,7 +488,7 @@ function useDayContent() {
                 color={t.color}
                 timesPerWeek={t.timesPerWeek}
                 onRemove={
-                  !isPast || t.retroactive
+                  !isPast
                     ? () => toggleRoutineForWeekDay(Number(String(t.id).split('::')[0]), wId, key)
                     : undefined
                 }
@@ -435,7 +524,7 @@ function useDayContent() {
     title: isUnsched ? 'Not scheduled yet' : d?.label ?? '',
     context: isUnsched
       ? 'Routines with no day chosen yet'
-      : `${dayIso ? formatDayHeading(dayIso) : ''} · ${isPast ? "Passed — can't be edited" : 'Plan this day'}`,
+      : `${dayIso ? formatDayHeading(dayIso) : ''} · ${isPast ? "Passed, can't be edited" : 'Plan this day'}`,
     body: (
       <View>
         <View style={styles.taskList}>{listItems}</View>
@@ -451,7 +540,7 @@ function useDayContent() {
 // day name, and — read-only — whatever else is already on it that week)
 // rather than a bare grid of weekday letters, so picking days means seeing
 // the week's actual shape instead of guessing at it blind.
-function useRoutinePlanContent() {
+function useRoutinePlanContent(): SheetContent {
   const { isDark } = useTheme();
   const {
     routines,
@@ -485,15 +574,9 @@ function useRoutinePlanContent() {
         {weekDays.map((day, index) => {
           const picked = sheetMultiDays.includes(day.key);
           const isPast = day.iso < todayIso;
-          // Whether this day was *already* a real commitment, by the pure
-          // historical resolution (2-arg daysForWeek — deliberately not
-          // today-aware, since it's asking "was this real" rather than
-          // "what should show"). A past day can only ever be toggled *off*
-          // here, never freshly picked — manual retroactive scheduling only
-          // happens by editing/creating the routine's regular days, never
-          // by hand-picking a day in this sheet (see docs/DECISIONS.md).
-          const wasReal = r ? daysForWeek(r, weekId).includes(day.key) : false;
-          const disabled = isPast ? wasReal || !picked : !picked && sheetMultiDays.length >= sheetMultiMax;
+          // A past day is fully locked here, no exceptions — picked or
+          // not, it can never be toggled. See docs/DECISIONS.md.
+          const disabled = isPast || (!picked && sheetMultiDays.length >= sheetMultiMax);
           const otherTasks = tasksFor(weekId, day.key).filter(
             (t) => Number(String(t.id).split('::')[0]) !== sheetRoutineId,
           );
@@ -504,9 +587,9 @@ function useRoutinePlanContent() {
               index={index}
               picked={picked}
               disabled={disabled}
+              isPast={isPast}
               isToday={day.iso === todayIso}
               otherTasks={otherTasks}
-              retroactive={isPast && picked && !wasReal}
               routineColor={routineColor}
               onToggle={() => toggleMultiDay(day.key)}
             />
@@ -517,9 +600,9 @@ function useRoutinePlanContent() {
         </SheetHint>
         <View style={styles.usualDaysRow}>
           {usualDays.length && !matchesUsual ? (
-            <SheetLinkButton label="Use usual days" onPress={applyUsualDaysToPlan} />
+            <SheetLinkButton label="Use regular days" onPress={applyUsualDaysToPlan} />
           ) : null}
-          {r ? <SheetLinkButton label="Edit usual days" onPress={() => openRoutineEdit(r.id)} /> : null}
+          {r ? <SheetLinkButton label="Edit regular days" onPress={() => openRoutineEdit(r.id)} /> : null}
         </View>
         <PrimaryButton label="Save" onPress={confirmRoutinePlan} />
         <GhostButton label="Cancel" onPress={closeSheet} />
@@ -528,7 +611,7 @@ function useRoutinePlanContent() {
   };
 }
 
-function useMoveRoutineDayContent() {
+function useMoveRoutineDayContent(): SheetContent {
   const {
     routines,
     sheetRoutineId,
@@ -543,19 +626,15 @@ function useMoveRoutineDayContent() {
   } = useAppState();
   const r = routines.find((r) => r.id === sheetRoutineId);
   const fromLabel = sheetRoutineFromDay ? dayMeta(sheetRoutineFromDay).label : '';
-  const takenDays =
-    r && sheetRoutineFromIso
-      ? daysForWeek(r, weekIdFor(parseISODate(sheetRoutineFromIso)), { iso: todayIso, weekId: todayWeekId })
-      : [];
+  const takenDays = r && sheetRoutineFromIso ? daysForWeek(r, weekIdFor(parseISODate(sheetRoutineFromIso))) : [];
   // This sheet is only ever reached from the Today screen's task menu (see
-  // TaskMenu.tsx, which gates "Switch day" on the task not being real past
-  // history), so the source is always this real week — excluding its
-  // already-passed days as destinations is what stops moving a task
-  // backward into the past.
+  // TaskMenu.tsx, which hides "Switch day" for any past task), so the
+  // source is always this real week — excluding its already-passed days as
+  // destinations is what stops moving a task backward into the past.
   const pastDays = DAY_KEYS.filter((day) => isoForWeekDay(todayWeekId, day) < todayIso);
   return {
     title: 'Move this day',
-    context: `${r?.title ?? ''} — currently ${fromLabel}`,
+    context: `${r?.title ?? ''} (currently ${fromLabel})`,
     body: (
       <View>
         <RoutineDayPickerExcluding
@@ -575,7 +654,7 @@ function useMoveRoutineDayContent() {
 // The week selector's calendar button opens this — a full month grid to
 // browse and jump the week browser from, independent of the small handful
 // of weeks reachable by chevron-tapping.
-function useMonthViewContent() {
+function useMonthViewContent(): SheetContent {
   const { closeSheet, monthViewGoToToday } = useAppState();
   return {
     title: 'Jump to a week',
@@ -608,9 +687,10 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 16,
   },
-  pageHeader: {
+  pageHeaderRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 8,
   },
   title: {
@@ -619,7 +699,7 @@ const styles = StyleSheet.create({
   },
   pageTitle: {
     fontSize: 24,
-    marginTop: 4,
+    flexShrink: 1,
   },
   context: {
     fontSize: 13.5,
@@ -630,6 +710,16 @@ const styles = StyleSheet.create({
   },
   pageScrollContent: {
     paddingBottom: 24,
+  },
+  footerRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingTop: 12,
+  },
+  footerBtn: {
+    flex: 1,
+    marginTop: 0,
+    minHeight: 48,
   },
   taskList: {
     marginTop: 2,

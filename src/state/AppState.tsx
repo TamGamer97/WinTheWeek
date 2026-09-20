@@ -11,7 +11,7 @@ import {
   SheetMode,
 } from '../data/types';
 import { initialRoutineIdCounter, initialRoutines } from '../data/seed';
-import { daysForWeek, isRetroactiveDay } from '../data/schedule';
+import { daysForWeek } from '../data/schedule';
 import { DEFAULT_ROUTINE_COLOR } from '../theme/colors';
 import {
   DAY_KEYS,
@@ -23,6 +23,7 @@ import {
   isoDate,
   isoForWeekDay,
   parseISODate,
+  sameDayKeySet,
   startOfWeek,
   weekIdFor,
 } from '../utils/date';
@@ -52,15 +53,6 @@ export type CoachTargetKey = 'fabAdd' | 'navWeek' | 'headerAnalytics';
 
 function isDayKey(v: unknown): v is DayKey {
   return typeof v === 'string' && (DAY_KEYS as string[]).includes(v);
-}
-
-// Order-independent equality — used to detect whether a routine edit
-// actually changed `defaultDays` (and so needs a `defaultDaysHistory`
-// snapshot), not just re-saved the same set in a different toggle order.
-function sameDayKeySet(a: DayKey[], b: DayKey[]): boolean {
-  if (a.length !== b.length) return false;
-  const setA = new Set(a);
-  return b.every((d) => setA.has(d));
 }
 
 function resolveColor(storedColor: unknown): string {
@@ -198,7 +190,7 @@ function effectiveOrder(r: Routine, iso: string): number {
   return r.dayOrder[iso] ?? r.order;
 }
 
-function makeRoutineInstance(r: Routine, iso: string, retroactive: boolean): RoutineInstance {
+function makeRoutineInstance(r: Routine, iso: string): RoutineInstance {
   return {
     id: `${r.id}::${iso}`,
     title: r.title,
@@ -207,7 +199,6 @@ function makeRoutineInstance(r: Routine, iso: string, retroactive: boolean): Rou
     isRoutine: true,
     timesPerWeek: r.timesPerWeek,
     order: effectiveOrder(r, iso),
-    retroactive,
   };
 }
 
@@ -303,6 +294,12 @@ type AppStateValue = {
   sheetRoutineId: number | null;
   sheetRoutineFromDay: DayKey | null;
   sheetRoutineFromIso: string | null;
+  // The add/edit forms' explicit "This week" / "Next week" schedule-start
+  // choice — the raw stored preference, not the effective value shown in
+  // the UI (a real conflict, e.g. a picked day already past this week,
+  // forces "next week" regardless of this). See docs/DECISIONS.md.
+  sheetStartsNextWeek: boolean;
+  setSheetStartsNextWeek: (v: boolean) => void;
 
   openAdd: (defaultDay: DayKeyOrUnscheduled) => void;
   changeFreq: (delta: number) => void;
@@ -329,6 +326,10 @@ type AppStateValue = {
   completeIntro: () => void;
   completeCoachmarks: () => void;
   replayTutorial: () => void;
+  // Wipes all persisted app data (routines, onboarding — Settings also
+  // resets the separate theme context alongside this) and returns to the
+  // exact fresh-install state.
+  resetAppData: () => void;
   // Lets a target element (the FAB, a nav tab, a header icon) register
   // itself so the coach-mark overlay can measure its on-screen position —
   // refs, not state, since registering one shouldn't trigger a re-render.
@@ -355,10 +356,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const todayWeekId = useMemo(() => isoDate(todayWeekStartRef.current), []);
   const todayDayKey = useMemo(() => dayKeyOf(todayRef.current), []);
   const todayWeekDays = useMemo(() => getWeekDayInfos(todayWeekStartRef.current), []);
-  // Passed to daysForWeek() wherever a result should include this week's
-  // *retroactive* days (see data/schedule.ts) — stable for the session,
-  // like todayIso/todayWeekId themselves.
-  const todayContext = useMemo(() => ({ iso: todayIso, weekId: todayWeekId }), [todayIso, todayWeekId]);
+  // The Monday after the current week — usual-day changes always take
+  // effect starting here: an edit's `defaultDaysHistory` snapshot boundary,
+  // and a fresh creation's `createdIso` when one of its picked days has
+  // already passed this week. See docs/DECISIONS.md.
+  const nextWeekId = useMemo(() => isoDate(addDays(parseISODate(todayWeekId), 7)), [todayWeekId]);
 
   useEffect(() => {
     let active = true;
@@ -496,6 +498,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   // from — lets confirmMoveRoutineDay compute the right week and carry the
   // done-state of that specific day over to its new one.
   const [sheetRoutineFromIso, setSheetRoutineFromIso] = useState<string | null>(null);
+  const [sheetStartsNextWeek, setSheetStartsNextWeek] = useState(false);
 
   const sheetMultiMaxRef = useRef(sheetMultiMax);
   sheetMultiMaxRef.current = sheetMultiMax;
@@ -504,19 +507,24 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     (wId: string, dayKey: DayKey): RoutineInstance[] => {
       const iso = isoDate(addDays(parseISODate(wId), DAY_KEYS.indexOf(dayKey)));
       return routines
-        .filter((r) => daysForWeek(r, wId, todayContext).includes(dayKey))
-        .map((r) => makeRoutineInstance(r, iso, isRetroactiveDay(r, wId, dayKey, todayContext)))
+        .filter((r) => daysForWeek(r, wId).includes(dayKey))
+        .map((r) => makeRoutineInstance(r, iso))
         // Always in the routines' own arranged order (drag-reorderable on
         // Today) — independent of completion state, so finishing a task
         // never shuffles the list.
         .sort((a, b) => a.order - b.order);
     },
-    [routines, todayContext],
+    [routines],
   );
 
   const pendingRoutines = useCallback(
-    (wId: string) => routines.filter((r) => daysForWeek(r, wId, todayContext).length < r.timesPerWeek),
-    [routines, todayContext],
+    (wId: string) =>
+      routines.filter(
+        (r) =>
+          (!r.createdIso || r.createdIso <= isoForWeekDay(wId, 'sun')) &&
+          daysForWeek(r, wId).length < r.timesPerWeek,
+      ),
+    [routines],
   );
 
   const showScreen = useCallback(
@@ -532,6 +540,26 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   // tour's one valid screen — so "replay" behaves exactly like first launch,
   // whichever screen it was triggered from (in practice, Settings).
   const replayTutorial = useCallback(() => {
+    setSeenIntro(false);
+    setSeenCoachmarks(false);
+    showScreen('today');
+  }, [showScreen]);
+
+  // Wipes every persisted key (routines, onboarding, theme — theme lives in
+  // a separate context, so Settings resets it itself alongside calling this)
+  // and puts in-memory state back to the exact fresh-install shape, rather
+  // than just clearing routines — a partial reset would leave things like
+  // the onboarding flags out of sync with actually-empty data.
+  const resetAppData = useCallback(async () => {
+    try {
+      await AsyncStorage.clear();
+    } catch {
+      // Best-effort — even if storage can't be cleared, still reset the
+      // in-memory state so the app itself reflects a clean slate.
+    }
+    setRoutines(initialRoutines);
+    routineIdCounter.current = initialRoutineIdCounter;
+    nextOrderRef.current = initialRoutines.length;
     setSeenIntro(false);
     setSeenCoachmarks(false);
     showScreen('today');
@@ -592,6 +620,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     // rather than leaving the new routine unscheduled.
     setSheetMultiDays(picked ? [picked] : []);
     setSheetMultiMax(3);
+    setSheetStartsNextWeek(false);
     setSheetOpen(true);
   }, []);
 
@@ -611,34 +640,22 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   // add) — always writes an explicit override for that one week, and never
   // touches the routine's default template.
   //
-  // A past day is a real historical record — adding to one is always
-  // blocked (manual retroactive scheduling only ever happens by editing or
-  // creating a routine's regular days, never by hand-picking a past day
-  // here — see data/schedule.ts's isRetroactiveDay). Removing from a past
-  // day is only allowed when it's retroactive in that sense; a genuinely
-  // real pre-existing entry stays a no-op, since removing it would erase
-  // actual history. See docs/DECISIONS.md.
+  // A past day is fully locked, no exceptions — neither adding nor
+  // removing is ever allowed for it, regardless of what's already there.
+  // See docs/DECISIONS.md.
   const toggleRoutineForWeekDay = useCallback(
     (routineId: number, wId: string, day: DayKey) => {
-      const iso = isoForWeekDay(wId, day);
-      const isPast = iso < todayIso;
+      if (isoForWeekDay(wId, day) < todayIso) return;
       setRoutines((prev) =>
         prev.map((r) => {
           if (r.id !== routineId) return r;
-          const current = daysForWeek(r, wId, todayContext);
-          const included = current.includes(day);
-          if (included) {
-            if (isPast && !isRetroactiveDay(r, wId, day, todayContext)) return r; // real history — protected
-            const days = current.filter((d) => d !== day);
-            return { ...r, schedule: { ...r.schedule, [wId]: days } };
-          }
-          if (isPast) return r; // no manual add to a past day, ever
-          const days = [...current, day];
+          const current = daysForWeek(r, wId);
+          const days = current.includes(day) ? current.filter((d) => d !== day) : [...current, day];
           return { ...r, schedule: { ...r.schedule, [wId]: days } };
         }),
       );
     },
-    [todayIso, todayContext],
+    [todayIso],
   );
 
   const deleteRoutine = useCallback((id: number) => {
@@ -722,22 +739,20 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const menuRemoveRoutineDay = useCallback(
     (id: string) => {
       const [ridStr, iso] = id.split('::');
+      if (iso < todayIso) return; // Past days are fully locked — no exceptions.
       const wId = weekIdFor(parseISODate(iso));
       const day = dayKeyOf(parseISODate(iso));
       setRoutines((prev) =>
         prev.map((r) => {
           if (String(r.id) !== ridStr) return r;
-          // Same retroactive-aware protection as toggleRoutineForWeekDay —
-          // a real past entry can't be removed this way either.
-          if (iso < todayIso && !isRetroactiveDay(r, wId, day, todayContext)) return r;
-          const days = daysForWeek(r, wId, todayContext).filter((d) => d !== day);
+          const days = daysForWeek(r, wId).filter((d) => d !== day);
           const doneDates = { ...r.doneDates };
           delete doneDates[iso];
           return { ...r, schedule: { ...r.schedule, [wId]: days }, doneDates };
         }),
       );
     },
-    [todayIso, todayContext],
+    [todayIso],
   );
 
   const changeFreq = useCallback((delta: number) => {
@@ -780,28 +795,29 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setSheetRoutineId(id);
       const r = routines.find((r) => r.id === id);
       if (r) {
-        setSheetMultiDays([...daysForWeek(r, weekId, todayContext)]);
+        setSheetMultiDays([...daysForWeek(r, weekId)]);
         setSheetMultiMax(r.timesPerWeek);
       }
       setSheetOpen(true);
     },
-    [routines, weekId, todayContext],
+    [routines, weekId],
   );
 
   const applyUsualDaysToPlan = useCallback(() => {
     const r = routines.find((r) => r.id === sheetRoutineId);
     if (!r) return;
-    // A real (non-retroactive) past day already in the picker is a locked
-    // commitment (the picker itself never lets it be toggled off) — "usual
-    // days" protects those first, then fills the rest from the routine's
-    // template as-is. A past day in the template is legitimately pickable
-    // now (it becomes a retroactive instance), so unlike before, it's no
-    // longer skipped here.
-    setSheetMultiDays(() => {
-      const realPast = daysForWeek(r, weekId).filter((d) => isoForWeekDay(weekId, d) < todayIso);
-      const usual = r.defaultDays.filter((d) => !realPast.includes(d));
-      const room = Math.max(0, sheetMultiMaxRef.current - realPast.length);
-      return [...realPast, ...usual.slice(0, room)];
+    // Past days already in the picker are locked commitments (the picker
+    // itself never lets them be toggled) — "usual days" only resets the
+    // still-choosable, today-or-later portion to match the routine's
+    // template, filling in around whatever the past already has, rather
+    // than overwriting it.
+    setSheetMultiDays((prev) => {
+      const lockedPast = prev.filter((d) => isoForWeekDay(weekId, d) < todayIso);
+      const usualUpcoming = r.defaultDays.filter(
+        (d) => isoForWeekDay(weekId, d) >= todayIso && !lockedPast.includes(d),
+      );
+      const room = Math.max(0, sheetMultiMaxRef.current - lockedPast.length);
+      return [...lockedPast, ...usualUpcoming.slice(0, room)];
     });
   }, [routines, sheetRoutineId, weekId, todayIso]);
 
@@ -818,6 +834,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         setSheetRoutineFreq(r.timesPerWeek);
         setSheetTaskColor(r.color);
       }
+      setSheetStartsNextWeek(false);
       setSheetOpen(true);
     },
     [routines],
@@ -861,11 +878,17 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (!trimmed) return;
       const id = routineIdCounter.current++;
       const order = nextOrderRef.current++;
+      // If any picked regular day has already happened this week, "This
+      // week" isn't actually possible regardless of the stored toggle
+      // preference — the whole schedule starts next week instead. See
+      // docs/DECISIONS.md.
+      const conflict = sheetMultiDays.some((d) => isoForWeekDay(todayWeekId, d) < todayIso);
+      const startsNextWeek = sheetStartsNextWeek || conflict;
       setRoutines((prev) => [
         ...prev,
         {
           id,
-          createdIso: todayIso,
+          createdIso: startsNextWeek ? nextWeekId : todayIso,
           title: trimmed,
           color,
           timesPerWeek: sheetRoutineFreq,
@@ -879,35 +902,25 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       ]);
       closeSheet();
     },
-    [sheetMultiDays, sheetRoutineFreq, closeSheet],
+    [sheetMultiDays, sheetRoutineFreq, sheetStartsNextWeek, todayIso, todayWeekId, nextWeekId, closeSheet],
   );
 
+  // The day picker (useRoutinePlanContent) never lets a past day be
+  // toggled at all — it's disabled outright — so `sheetMultiDays` already
+  // carries any locked-in past days through unchanged; this just saves the
+  // picker's selection as-is. Don't add a "filter past days out" step here:
+  // that was tried once and is a bug, not a safety net — see
+  // docs/DECISIONS.md.
   const confirmRoutinePlan = useCallback(() => {
     if (sheetRoutineId == null) {
       closeSheet();
       return;
     }
-    // The day picker (useRoutinePlanContent) only ever lets a past day be
-    // toggled *off* (never freshly picked — see disabled there), so the
-    // picker's own selection can be trusted for everything except: force-
-    // keep any real (non-retroactive) past day regardless of what the
-    // picker shows, protecting history the same way toggleRoutineForWeekDay
-    // does. daysForWeek() here is the 2-arg, pure-historical call —
-    // deliberately not today-aware, since it's answering "was this day
-    // already real" rather than "what should show".
     setRoutines((prev) =>
-      prev.map((r) => {
-        if (r.id !== sheetRoutineId) return r;
-        const historical = daysForWeek(r, weekId);
-        const days = [...sheetMultiDays];
-        for (const day of historical) {
-          if (isoForWeekDay(weekId, day) < todayIso && !days.includes(day)) days.push(day);
-        }
-        return { ...r, schedule: { ...r.schedule, [weekId]: days } };
-      }),
+      prev.map((r) => (r.id === sheetRoutineId ? { ...r, schedule: { ...r.schedule, [weekId]: [...sheetMultiDays] } } : r)),
     );
     closeSheet();
-  }, [sheetRoutineId, sheetMultiDays, weekId, todayIso, closeSheet]);
+  }, [sheetRoutineId, sheetMultiDays, weekId, closeSheet]);
 
   const confirmRoutineEdit = useCallback(
     (title: string) => {
@@ -920,27 +933,52 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setRoutines((prev) =>
         prev.map((r) => {
           if (r.id !== sheetRoutineId) return r;
-          // Changing the regular days must never rewrite what already-past
-          // days resolved to — snapshot the days being replaced, tagged
-          // with today, before applying the new ones. daysForWeek() then
-          // resolves any date before today against this snapshot (or an
-          // earlier one) and today-or-later dates against the new value.
-          const defaultDaysHistory = sameDayKeySet(r.defaultDays, newDefaultDays)
-            ? r.defaultDaysHistory
-            : [...r.defaultDaysHistory, { untilIso: todayIso, days: r.defaultDays }];
+          // Whether the regular days change takes effect today or next
+          // Monday is the person's explicit choice (the "This week" /
+          // "Next week" toggle) — except a newly-added day that's already
+          // past this week can never actually start this week (past days
+          // are locked everywhere else, no exceptions), which forces next
+          // week regardless of the stored preference. Snapshot the days
+          // being replaced, valid up to that boundary — daysForWeek() then
+          // resolves everything before it against this snapshot, and
+          // everything at/after it against the new value. See
+          // docs/DECISIONS.md.
+          const daysChanged = !sameDayKeySet(r.defaultDays, newDefaultDays);
+          if (!daysChanged) {
+            return {
+              ...r,
+              ...(trimmed ? { title: trimmed } : null),
+              color: sheetTaskColor,
+              timesPerWeek: sheetRoutineFreq,
+            };
+          }
+          const conflict = newDefaultDays.some(
+            (d) => !r.defaultDays.includes(d) && isoForWeekDay(todayWeekId, d) < todayIso,
+          );
+          const untilIso = sheetStartsNextWeek || conflict ? nextWeekId : todayIso;
           return {
             ...r,
             ...(trimmed ? { title: trimmed } : null),
             color: sheetTaskColor,
             timesPerWeek: sheetRoutineFreq,
             defaultDays: newDefaultDays,
-            defaultDaysHistory,
+            defaultDaysHistory: [...r.defaultDaysHistory, { untilIso, days: r.defaultDays }],
           };
         }),
       );
       closeSheet();
     },
-    [sheetRoutineId, sheetTaskColor, sheetRoutineFreq, sheetMultiDays, todayIso, closeSheet],
+    [
+      sheetRoutineId,
+      sheetTaskColor,
+      sheetRoutineFreq,
+      sheetMultiDays,
+      sheetStartsNextWeek,
+      nextWeekId,
+      todayWeekId,
+      todayIso,
+      closeSheet,
+    ],
   );
 
   const confirmMoveRoutineDay = useCallback(() => {
@@ -952,25 +990,17 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     const toDay = sheetPickedDay;
     const wId = weekIdFor(parseISODate(fromIso));
     const toIso = isoDate(addDays(parseISODate(wId), DAY_KEYS.indexOf(toDay)));
-    // The day it's moving to may never be in the past — moving into one
-    // would rewrite it. The day being moved *from* may be in the past only
-    // if it's retroactive (see data/schedule.ts) — moving away from a real
-    // past day would erase its record.
-    if (toIso < todayIso) {
+    // Neither the day being moved from nor the day it's moving to may be in
+    // the past — moving away from a past day would erase its record, and
+    // moving into one would rewrite it. No exceptions. See docs/DECISIONS.md.
+    if (fromIso < todayIso || toIso < todayIso) {
       closeSheet();
       return;
-    }
-    if (fromIso < todayIso) {
-      const r = routines.find((r) => r.id === sheetRoutineId);
-      if (!r || !sheetRoutineFromDay || !isRetroactiveDay(r, wId, sheetRoutineFromDay, todayContext)) {
-        closeSheet();
-        return;
-      }
     }
     setRoutines((prev) =>
       prev.map((r) => {
         if (r.id !== sheetRoutineId) return r;
-        const current = daysForWeek(r, wId, todayContext);
+        const current = daysForWeek(r, wId);
         let days = sheetRoutineFromDay ? current.filter((d) => d !== sheetRoutineFromDay) : current;
         if (!days.includes(toDay)) days = [...days, toDay];
         const doneVal = r.doneDates[fromIso] || false;
@@ -981,7 +1011,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       }),
     );
     closeSheet();
-  }, [sheetPickedDay, sheetRoutineFromIso, sheetRoutineFromDay, sheetRoutineId, routines, todayIso, todayContext, closeSheet]);
+  }, [sheetPickedDay, sheetRoutineFromIso, sheetRoutineFromDay, sheetRoutineId, todayIso, closeSheet]);
 
   const value = useMemo<AppStateValue>(
     () => ({
@@ -1046,6 +1076,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       sheetRoutineId,
       sheetRoutineFromDay,
       sheetRoutineFromIso,
+      sheetStartsNextWeek,
+      setSheetStartsNextWeek,
       openAdd,
       changeFreq,
       toggleMultiDay,
@@ -1067,6 +1099,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       completeIntro,
       completeCoachmarks,
       replayTutorial,
+      resetAppData,
       registerCoachTarget,
       measureCoachTarget,
     }),
@@ -1132,6 +1165,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       sheetRoutineId,
       sheetRoutineFromDay,
       sheetRoutineFromIso,
+      sheetStartsNextWeek,
+      setSheetStartsNextWeek,
       openAdd,
       changeFreq,
       toggleMultiDay,
@@ -1153,6 +1188,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       completeIntro,
       completeCoachmarks,
       replayTutorial,
+      resetAppData,
       registerCoachTarget,
       measureCoachTarget,
     ],

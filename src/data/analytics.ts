@@ -19,10 +19,6 @@ export function dayCompletion(routines: Routine[], iso: string): DayCompletion {
   let planned = 0;
   let done = 0;
   for (const r of routines) {
-    // The 2-arg daysForWeek() call is deliberate: it's the pure historical
-    // resolution, which never includes a *retroactive* day (see
-    // data/schedule.ts) — those must show up in the actual day/week view,
-    // but never count here, or they'd drag down real completion%/streaks.
     if (daysForWeek(r, wId).includes(dKey)) {
       planned++;
       if (r.doneDates[iso]) done++;

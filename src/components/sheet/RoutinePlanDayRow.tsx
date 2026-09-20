@@ -8,6 +8,20 @@ import { CheckIcon } from '../../icons/Icons';
 import PressScale from '../PressScale';
 import FadeInUp from '../FadeInUp';
 
+// Why a disabled row can't be picked — shown in place of the "what else is
+// planned" line, since that's the more useful fact once a day is off-limits
+// at all. A past day is the only reason today; kept as its own component
+// (rather than inlining the string) so a future second reason has somewhere
+// to go without restructuring the row again.
+function DisabledReason({ reason }: { reason: string }) {
+  const { colors } = useTheme();
+  return (
+    <Text numberOfLines={1} style={[styles.meta, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>
+      {reason}
+    </Text>
+  );
+}
+
 // What else is already on this day, read-only — the same color-coded inline
 // list WeekBoard uses, but without its tap-to-toggle (this row's own tap
 // target is the whole card, for the routine being planned, not these).
@@ -53,26 +67,24 @@ export default function RoutinePlanDayRow({
   index,
   picked,
   disabled,
+  isPast,
   isToday,
   otherTasks,
-  retroactive,
   routineColor,
   onToggle,
 }: {
   day: DayInfo;
   index: number;
   picked: boolean;
-  // True for a *real* past commitment that already existed — the one case
-  // picking can't be undone here. A past day that's unpicked, or picked as
-  // a retroactive instance, stays toggleable (off only); see `disabled`.
+  // True for any past day, picked or not — past days are fully locked here,
+  // no exceptions. See docs/DECISIONS.md. Also true once the routine's
+  // weekly frequency is already fully picked elsewhere (an unpicked day is
+  // disabled without being past) — `isPast` distinguishes which reason to
+  // show, since only one of them needs explaining on the row itself.
   disabled: boolean;
+  isPast: boolean;
   isToday: boolean;
   otherTasks: RoutineInstance[];
-  // This past day only shows the routine because of a schedule change (a
-  // fresh creation, or a `defaultDays` edit) that happened after the date
-  // itself had already passed — see data/schedule.ts's isRetroactiveDay.
-  // Visible, but never completable and excluded from analytics.
-  retroactive?: boolean;
   routineColor: string;
   onToggle: () => void;
 }) {
@@ -123,13 +135,7 @@ export default function RoutinePlanDayRow({
           <Text style={[styles.dayName, androidTextFix, { color: colors.ink, fontFamily: fonts.headingSemiBold }]}>
             {day.label}
           </Text>
-          {retroactive ? (
-            <Text numberOfLines={1} style={[styles.meta, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>
-              Included automatically — won't count toward your progress
-            </Text>
-          ) : (
-            <OtherTasksLine tasks={otherTasks} />
-          )}
+          {isPast ? <DisabledReason reason="This day has passed" /> : <OtherTasksLine tasks={otherTasks} />}
         </View>
 
         <View

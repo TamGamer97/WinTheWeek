@@ -8,6 +8,7 @@ export type SegmentedOption<T extends string> = {
   value: T;
   label: string;
   icon?: React.ReactNode;
+  disabled?: boolean;
 };
 
 // A pill-shaped, multi-segment switch: a soft track with a raised, shadowed
@@ -34,7 +35,12 @@ export default function SegmentedToggle<T extends string>({
             key={opt.value}
             scaleTo={0.97}
             onPress={() => onChange(opt.value)}
-            style={[styles.btn, active && [{ backgroundColor: colors.paperRaised }, shadowCard]]}
+            disabled={opt.disabled}
+            style={[
+              styles.btn,
+              active && [{ backgroundColor: colors.paperRaised }, shadowCard],
+              opt.disabled && styles.btnDisabled,
+            ]}
           >
             {opt.icon}
             <Text
@@ -69,6 +75,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     minHeight: 40,
     borderRadius: 9,
+  },
+  btnDisabled: {
+    opacity: 0.4,
   },
   text: {
     fontSize: 13,

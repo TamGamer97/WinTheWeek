@@ -86,6 +86,10 @@ export function RoutineDayPickerExcluding({
   pastDays,
 }: {
   takenDays: DayKey[];
+  // The day this instance is currently on — excluded from the "taken by
+  // this routine" check below (it's about to be vacated), but also its own
+  // separate reason to disable: moving a task to the day it's already on
+  // isn't a real move, so it isn't offered as a destination at all.
   excludeDay: DayKey | null;
   pickedDay: DayKey | null;
   onPick: (key: DayKey) => void;
@@ -94,9 +98,10 @@ export function RoutineDayPickerExcluding({
   pastDays?: DayKey[];
 }) {
   const opts: Opt[] = DAY_KEYS.map((key) => {
-    const takenByThisRoutine = takenDays.includes(key) && key !== excludeDay;
+    const isCurrentDay = key === excludeDay;
+    const takenByThisRoutine = takenDays.includes(key) && !isCurrentDay;
     const isPast = pastDays?.includes(key) ?? false;
-    const disabled = takenByThisRoutine || isPast;
+    const disabled = takenByThisRoutine || isPast || isCurrentDay;
     const picked = pickedDay === key;
     return {
       key,

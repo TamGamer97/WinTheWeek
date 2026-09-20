@@ -94,6 +94,17 @@ export function getWeekDayInfos(weekStart: Date): DayInfo[] {
   });
 }
 
+// Order-independent equality for two day-key sets — used wherever a routine
+// edit needs to know whether its regular days actually *changed*, not just
+// got re-saved in a different toggle order (e.g. deciding whether a
+// `defaultDaysHistory` snapshot is needed, or whether to warn that a save
+// will move the schedule to next week).
+export function sameDayKeySet(a: DayKey[], b: DayKey[]): boolean {
+  if (a.length !== b.length) return false;
+  const setA = new Set(a);
+  return b.every((d) => setA.has(d));
+}
+
 // Weekday name/abbreviation for a DayKey, with no date attached — for
 // contexts that only care which weekday, not which calendar instance of it
 // (e.g. "currently Wednesday" in the move-day sheet).
