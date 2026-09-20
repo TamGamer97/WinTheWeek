@@ -22,7 +22,7 @@
       "icon": "./assets/icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-adaptive-foreground.png",
-        "backgroundColor": "#0A2543"
+        "backgroundColor": "#000000"
       },
       "softwareKeyboardLayoutMode": "pan",
       "predictiveBackGestureEnabled": false,
