@@ -3,6 +3,8 @@ import {
   Animated,
   Dimensions,
   Easing,
+  Image,
+  ImageSourcePropType,
   NativeScrollEvent,
   NativeSyntheticEvent,
   ScrollView,
@@ -10,6 +12,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeContext';
 import { androidTextFix, fonts } from '../../theme/fonts';
@@ -17,51 +20,91 @@ import { useAppState } from '../../state/AppState';
 import { PrimaryButton, SheetLinkButton } from '../sheet/SheetControls';
 import FadeInUp from '../FadeInUp';
 import StepDots from './StepDots';
-import {
-  InsightsIllustration,
-  PlanIllustration,
-  TrackIllustration,
-  WelcomeIllustration,
-} from './OnboardingIllustrations';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
-type IllustrationComponent = React.ComponentType<{
-  size?: number;
-  color?: string;
-  accentColor?: string;
-  accentSoftColor?: string;
-}>;
-
-const SLIDES: { Illustration: IllustrationComponent; title: string; body: string }[] = [
+// Real screen recordings of the actual app, not illustrations — NN/g's
+// research on onboarding flags "feature-based" tours (showing what an app
+// can do before someone has used it) as reading like marketing rather than
+// help, so every slide is still a screen the person will actually land on,
+// shown as a short looping clip of the real action rather than a static
+// frame or a mocked-up demo. The clips are the same footage the marketing
+// site's promo video uses (marketing/video/public/recordings/v2/*.mp4,
+// converted to GIF — see marketing/video/src/story.ts for the source list),
+// so the in-app tour and the site show identical, real interactions. There's
+// still no separate "watch your progress" slide — that's what the
+// coach-mark tour's Analytics step is for, once there's something to
+// actually show. See docs/DECISIONS.md.
+const SLIDES: {
+  source: ImageSourcePropType;
+  title: string;
+  body: string;
+}[] = [
   {
-    Illustration: WelcomeIllustration,
+    source: require('../../../assets/onboarding/today.gif'),
     title: 'Welcome to WinTheWeek',
-    body: 'Plan your routines once, then just check them off.',
+    body: "Here's your day: a simple checklist. Check things off as you go. Nothing to fill in.",
   },
   {
-    Illustration: PlanIllustration,
-    title: 'Set your rhythm',
-    body: 'Add a routine, pick how many days a week — WinTheWeek fits it into your schedule.',
+    source: require('../../../assets/onboarding/complete.gif'),
+    title: 'Mark it done',
+    body: 'One tap on a routine finishes it for the day — no notes, no forms.',
   },
   {
-    Illustration: TrackIllustration,
-    title: 'One tap, done',
-    body: 'Check things off as you go. Nothing to fill in, nothing to overthink.',
+    source: require('../../../assets/onboarding/week.gif'),
+    title: 'See your whole week',
+    body: 'Every day at a glance, so you always know what’s coming up and what’s already done.',
   },
   {
-    Illustration: InsightsIllustration,
-    title: 'See it add up',
-    body: "Your Week view and Analytics show how you're actually doing.",
+    source: require('../../../assets/onboarding/create.gif'),
+    title: 'Create a routine',
+    body: 'Give it a name, a color, and pick how often it happens.',
+  },
+  {
+    source: require('../../../assets/onboarding/days.gif'),
+    title: 'Choose the days',
+    body: 'WinTheWeek fits it into your week from there.',
+  },
+  {
+    source: require('../../../assets/onboarding/move.gif'),
+    title: 'Plans change',
+    body: "Didn't get to something? Move it to another day, no penalty.",
   },
 ];
+
+const PHONE_WIDTH = 196;
+const PHONE_ASPECT = 824 / 1648; // the recorded clips' own width:height
+const BEZEL_PAD = 7;
+const NOTCH_ZONE = 30;
+const HOME_ZONE = 16;
+const SCREEN_INNER_W = PHONE_WIDTH - BEZEL_PAD * 2;
+const SCREEN_INNER_H = SCREEN_INNER_W / PHONE_ASPECT;
+
+// A small device mockup around each real screenshot — reusing the exact
+// frame/notch/home-indicator treatment the marketing website already uses
+// for its own screenshots (website/styles.css's `.phone-frame`), so the
+// in-app tour and the site read as the same product. The screenshots
+// themselves have no status bar baked in, so this frame reserves that
+// space itself (`NOTCH_ZONE`/`HOME_ZONE`) rather than cropping or covering
+// any real content.
+function PhoneMockup({ source, paper }: { source: ImageSourcePropType; paper: string }) {
+  return (
+    <LinearGradient colors={['#303034', '#1a1a1d']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.phoneFrame}>
+      <View style={[styles.phoneScreen, { backgroundColor: paper }]}>
+        <View style={styles.phoneNotch} />
+        <Image source={source} style={styles.phoneImage} resizeMode="cover" />
+        <View style={styles.phoneHome} />
+      </View>
+    </LinearGradient>
+  );
+}
 
 // The one-time, full-screen intro — the first thing a fresh install shows,
 // above everything else in the app (even ConfirmDialog's zIndex 40). Reads
 // its own visibility straight from AppState, same self-contained pattern as
 // TaskMenu/BottomSheet/ConfirmDialog, rather than being told when to show.
 export default function IntroSlides() {
-  const { colors, radius, shadowPanel } = useTheme();
+  const { colors, shadowPanel } = useTheme();
   const insets = useSafeAreaInsets();
   const { hasHydratedOnboarding, seenIntro, completeIntro } = useAppState();
   // Gated on hydration too, not just `!seenIntro` — otherwise a returning
@@ -135,12 +178,11 @@ export default function IntroSlides() {
         onMomentumScrollEnd={onMomentumScrollEnd}
         style={styles.pager}
       >
-        {SLIDES.map(({ Illustration, title, body }, i) => (
+        {SLIDES.map(({ source, title, body }, i) => (
           <View key={i} style={[styles.slide, { width: SCREEN_W }]}>
             <FadeInUp duration={420} distance={14} replayKey={pageIndex}>
-              <View style={[styles.illustrationWrap, shadowPanel, { backgroundColor: colors.accentSoft, borderRadius: radius.pill }]}>
-                <View style={[styles.illustrationRing, { borderColor: colors.paperRaised }]} />
-                <Illustration size={120} color={colors.line} accentColor={colors.accent} accentSoftColor={colors.paperRaised} />
+              <View style={[styles.phoneShadowWrap, shadowPanel]}>
+                <PhoneMockup source={source} paper={colors.paper} />
               </View>
             </FadeInUp>
             <Text style={[styles.title, androidTextFix, { color: colors.ink, fontFamily: fonts.headingBold }]}>
@@ -176,22 +218,48 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 36,
   },
-  illustrationWrap: {
-    width: 208,
-    height: 208,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 36,
+  phoneShadowWrap: {
+    marginBottom: 28,
+    borderRadius: 30,
   },
-  illustrationRing: {
+  phoneFrame: {
+    width: PHONE_WIDTH,
+    padding: BEZEL_PAD,
+    borderRadius: 30,
+  },
+  phoneScreen: {
+    width: SCREEN_INNER_W,
+    height: SCREEN_INNER_H + NOTCH_ZONE + HOME_ZONE,
+    borderRadius: 23,
+    overflow: 'hidden',
+  },
+  phoneImage: {
+    width: SCREEN_INNER_W,
+    height: SCREEN_INNER_H,
+    marginTop: NOTCH_ZONE,
+  },
+  phoneNotch: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    top: 8,
+    left: '50%',
+    transform: [{ translateX: -22 }],
+    width: 44,
+    height: 6,
     borderRadius: 999,
-    borderWidth: 10,
-    opacity: 0.5,
+    backgroundColor: '#1a1a1d',
+    zIndex: 2,
+  },
+  phoneHome: {
+    position: 'absolute',
+    bottom: 6,
+    left: '50%',
+    transform: [{ translateX: -24 }],
+    width: 48,
+    height: 3,
+    borderRadius: 999,
+    backgroundColor: '#8C8681',
+    opacity: 0.4,
+    zIndex: 2,
   },
   title: {
     fontSize: 23,
