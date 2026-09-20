@@ -1,0 +1,13 @@
+STRICT PRESERVATION EDIT of the provided original WinTheWeek app icon. The user rejected a redesigned W and wants THIS EXACT ORIGINAL LOGO, not a redraw or reinterpretation.
+
+Treat the existing complete white-and-yellow mark as a single locked image layer: uniformly scale the WHOLE mark down to 78% of its existing size and place it optically centred on the square. This changes the mark's width from about 89% of the canvas to about 69%, giving clean generous padding. Apply exactly the same scale to both colours, all the gaps and every segment. DO NOT shorten the yellow stroke independently.
+
+Preserve EXACTLY: the original unusual interwoven W geometry; the TWO diagonal background-coloured cuts through the white shape; the disconnected lower-right white diagonal piece; the original tall rounded yellow rising stroke; all existing stroke thickness ratios, terminal shapes, angles, distances, overlaps, joins and relative proportions. The W silhouette must match the input perfectly after uniform scaling. Do NOT turn this into a normal continuous zigzag W. Do NOT join the disconnected pieces. Do NOT move the yellow onto any other segment.
+
+Change only palette in addition to the uniform reduction:
+- Opaque full-bleed dark ink navy background #152D4B, edge to edge.
+- Original white shapes become very subtle warm white #F6F4EE.
+- Original yellow stroke becomes a softer warm golden yellow #F3CA58, less harsh and neon than the original, still clearly yellow and high contrast.
+Keep the original mark's visual finish, without adding anything.
+
+One square finished icon only. No text, no borders, no rounded outer tile corners, no shadow, no transparency, no presentation mockup. ORIGINAL MARK GEOMETRY IS THE HIGHEST PRIORITY; only uniform size, position, and palette may change.
