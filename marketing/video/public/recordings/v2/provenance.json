@@ -1,0 +1,58 @@
+{
+  "source": "Live Expo web export with illustrative historical fixture requested by user; current actions performed through UI",
+  "fixture": "scripts/demo-data.cjs",
+  "demoDate": "2026-09-28T09:41:00+01:00",
+  "viewport": {
+    "width": 412,
+    "height": 824,
+    "scale": 2
+  },
+  "recordings": [
+    {
+      "name": "02-create-routine",
+      "frames": 15,
+      "seconds": 5.276000022888184
+    },
+    {
+      "name": "03-choose-days",
+      "frames": 24,
+      "seconds": 6.273999929428101
+    },
+    {
+      "name": "01-hero-light",
+      "frames": 1,
+      "seconds": 4.771000146865845
+    },
+    {
+      "name": "04-full-week",
+      "frames": 1,
+      "seconds": 4.769999980926514
+    },
+    {
+      "name": "05-today",
+      "frames": 31,
+      "seconds": 4.771999835968018
+    },
+    {
+      "name": "06-complete",
+      "frames": 44,
+      "seconds": 4.319000005722046
+    },
+    {
+      "name": "07-move-today",
+      "frames": 104,
+      "seconds": 7.769000053405762
+    },
+    {
+      "name": "08-move-week",
+      "frames": 36,
+      "seconds": 5.273000001907349
+    },
+    {
+      "name": "09-progress",
+      "frames": 22,
+      "seconds": 7.773000001907349
+    }
+  ],
+  "errors": []
+}

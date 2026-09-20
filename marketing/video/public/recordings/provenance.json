@@ -1,0 +1,47 @@
+{
+  "source": "Live Expo web export, controlled through UI in isolated Chromium",
+  "demoDate": "2026-09-21T09:41:00+01:00",
+  "viewport": {
+    "width": 412,
+    "height": 824,
+    "scale": 2
+  },
+  "recordings": [
+    {
+      "name": "02-create-routine",
+      "frames": 15,
+      "seconds": 4.810999870300293
+    },
+    {
+      "name": "03-choose-days",
+      "frames": 24,
+      "seconds": 5.116999864578247
+    },
+    {
+      "name": "04-full-week",
+      "frames": 1,
+      "seconds": 5.409999847412109
+    },
+    {
+      "name": "05-today",
+      "frames": 30,
+      "seconds": 4.39300012588501
+    },
+    {
+      "name": "06-complete",
+      "frames": 45,
+      "seconds": 4.017999887466431
+    },
+    {
+      "name": "07-progress",
+      "frames": 25,
+      "seconds": 5.445000171661377
+    },
+    {
+      "name": "01-hero-dark",
+      "frames": 1,
+      "seconds": 4.2159998416900635
+    }
+  ],
+  "errors": []
+}

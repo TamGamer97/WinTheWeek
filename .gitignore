@@ -11,6 +11,7 @@ expo-env.d.ts
 build
 .expo-export*/
 .plan-verify/
+dist-verify/
 
 # Generated native projects and build output
 /android/
