@@ -23,6 +23,7 @@
     </a>
 
     <nav class="main-nav" id="main-nav">
+      <a href="#watch">Watch</a>
       <a href="#features">Features</a>
       <a href="#how">How it works</a>
       <a href="#screens">Screens</a>
@@ -40,6 +41,7 @@
     </div>
   </div>
   <div class="mobile-nav" id="mobile-nav">
+    <a href="#watch">Watch</a>
     <a href="#features">Features</a>
     <a href="#how">How it works</a>
     <a href="#screens">Screens</a>
@@ -99,6 +101,56 @@
         <span class="strip-dot dot-violet"></span>Six colors per week
         <span class="strip-sep">&middot;</span>
         <span class="strip-dot dot-green"></span>Zero accounts, ever
+      </p>
+    </div>
+  </section>
+
+  <!-- WATCH / DEMO VIDEO -->
+  <section id="watch" class="watch">
+    <div class="wrap">
+      <div class="section-head watch-head reveal">
+        <p class="eyebrow">See it in motion</p>
+        <h2>Your whole week, in under a minute.</h2>
+        <p class="section-sub">Creating a routine, planning the week, checking off today &mdash; the real app, not a mockup.</p>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <div class="watch-frame reveal" id="watch-frame">
+        <video
+          id="promo-video"
+          class="watch-video"
+          src="assets/video/wintheweek-promo.mp4"
+          poster="assets/video/poster.jpg"
+          muted
+          loop
+          playsinline
+          preload="metadata"
+        ></video>
+
+        <div class="watch-controls">
+          <button class="watch-btn" id="watch-play" type="button" aria-label="Pause video">
+            <svg class="icon-pause" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1.2"/><rect x="14" y="4" width="4" height="16" rx="1.2"/></svg>
+            <svg class="icon-play" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5-13-7.5Z"/></svg>
+          </button>
+
+          <input class="watch-seek" id="watch-seek" type="range" min="0" max="1000" step="1" value="0" aria-label="Seek video">
+
+          <span class="watch-time" id="watch-time" aria-hidden="true">0:00 / 0:00</span>
+
+          <button class="watch-btn" id="watch-mute" type="button" aria-label="Unmute video">
+            <svg class="icon-sound-on" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 5V4L8 9H4Z"/><path d="M17 8a5 5 0 0 1 0 8"/><path d="M19.5 5.5a9 9 0 0 1 0 13"/></svg>
+            <svg class="icon-sound-off" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 5V4L8 9H4Z"/><path d="M16 9l5 6M21 9l-5 6"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <p class="watch-elsewhere reveal">
+        <a href="https://www.youtube.com/watch?v=dyJPFnVHGJ4" target="_blank" rel="noopener">
+          <svg width="18" height="13" viewBox="0 0 28 20" fill="currentColor"><path d="M27.4 3.1c-.3-1.2-1.3-2.1-2.4-2.4C22.9.1 14 .1 14 .1S5.1.1 3 .7C1.9 1 .9 1.9.6 3.1 0 5.2 0 10 0 10s0 4.8.6 6.9c.3 1.2 1.3 2.1 2.4 2.4C5.1 19.9 14 19.9 14 19.9s8.9 0 11-.6c1.2-.3 2.1-1.2 2.4-2.4.6-2.1.6-6.9.6-6.9s0-4.8-.6-6.9Z"/><path d="M11.2 14.3 18.5 10l-7.3-4.3v8.6Z" fill="var(--paper)"/></svg>
+          Watch on YouTube
+          <span class="watch-elsewhere-arrow">&#8599;</span>
+        </a>
       </p>
     </div>
   </section>

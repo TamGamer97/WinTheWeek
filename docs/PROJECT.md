@@ -493,7 +493,7 @@ The `preview` EAS profile in `eas.json` produces an installable Android APK.
 The `production` profile produces a Google Play-ready Android App Bundle
 (`.aab`). Both require an authenticated EAS CLI session and a configured EAS
 project; the app release version is defined in `app.json` and currently
-displays as `0.0.1` in Settings.
+displays as `1.0.0` in Settings.
 
 There is no CI and no automated test suite; see `AGENTS.md` for how to
 verify a change in this repo.

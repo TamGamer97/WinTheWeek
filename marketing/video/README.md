@@ -28,6 +28,8 @@ The video has its own dependencies, lockfile, and TypeScript gate. The app's roo
 
 ## Editing
 
+The separate YouTube thumbnail is `out/WinTheWeek-YouTube-thumbnail.png` (1920 × 1080). Its editable composition is `src/thumbnail.tsx`, using the v4 brand icon and a real captured Today screen at `public/thumbnail/today.png`. Render it independently with `npx remotion still src/thumbnail.tsx WinTheWeekThumbnail out/WinTheWeek-YouTube-thumbnail.png`; this does not modify the promo.
+
 - **src/story.ts**: captions, durations, footage paths, in-points, soundtrack volume. Total duration is calculated automatically.
 - **src/Promo.tsx**: layout, typography, colours, easing, dissolves, audio fades.
 - **src/IPhoneFrame.tsx**: device shell, camera area, status bar, home indicator. The 448 × 896 footage window preserves the recording's 1:2 ratio exactly, with separate 62 px top and 38 px bottom safe areas. Nothing is stretched or cropped to fit the phone.

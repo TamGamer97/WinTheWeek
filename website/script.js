@@ -129,6 +129,99 @@
     });
   }
 
+  /* ---------------- Demo video ---------------- */
+  (function () {
+    var frame = document.getElementById('watch-frame');
+    var video = document.getElementById('promo-video');
+    var playBtn = document.getElementById('watch-play');
+    var muteBtn = document.getElementById('watch-mute');
+    var seek = document.getElementById('watch-seek');
+    var timeEl = document.getElementById('watch-time');
+    if (!frame || !video || !playBtn || !muteBtn || !seek || !timeEl) return;
+
+    function setPaused(paused) {
+      frame.classList.toggle('is-paused', paused);
+      playBtn.setAttribute('aria-label', paused ? 'Play video' : 'Pause video');
+    }
+    function setMuted(muted) {
+      video.muted = muted;
+      frame.classList.toggle('is-unmuted', !muted);
+      muteBtn.setAttribute('aria-label', muted ? 'Unmute video' : 'Mute video');
+    }
+    function togglePlay() {
+      if (video.paused) video.play().catch(function () {});
+      else video.pause();
+    }
+
+    function formatTime(seconds) {
+      if (!isFinite(seconds) || seconds < 0) seconds = 0;
+      var total = Math.floor(seconds);
+      var m = Math.floor(total / 60);
+      var s = total % 60;
+      return m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    // Dragging the slider fires 'input' continuously; that same drag also
+    // moves currentTime, which would otherwise fire 'timeupdate' and fight
+    // the user for control of the thumb mid-drag — this flag lets the seek
+    // handler suppress timeupdate's slider/progress writes while a drag is
+    // in flight, while still letting timeupdate keep the time text live.
+    var scrubbing = false;
+
+    function updateFromTime() {
+      var duration = video.duration;
+      var current = video.currentTime;
+      var pct = duration > 0 && isFinite(duration) ? (current / duration) * 100 : 0;
+      if (!scrubbing) {
+        seek.value = String(Math.round(pct * 10));
+        seek.style.setProperty('--watch-progress', pct + '%');
+      }
+      timeEl.textContent = formatTime(current) + ' / ' + formatTime(duration);
+    }
+
+    video.addEventListener('timeupdate', updateFromTime);
+    video.addEventListener('loadedmetadata', updateFromTime);
+
+    seek.addEventListener('input', function () {
+      scrubbing = true;
+      var pct = Number(seek.value) / 10;
+      seek.style.setProperty('--watch-progress', pct + '%');
+      if (isFinite(video.duration)) {
+        video.currentTime = (pct / 100) * video.duration;
+      }
+    });
+    seek.addEventListener('change', function () { scrubbing = false; });
+
+    playBtn.addEventListener('click', togglePlay);
+    video.addEventListener('click', togglePlay);
+    video.addEventListener('play', function () { setPaused(false); });
+    video.addEventListener('pause', function () { setPaused(true); });
+    muteBtn.addEventListener('click', function () { setMuted(!video.muted); });
+
+    setMuted(true);
+    setPaused(true);
+    updateFromTime();
+
+    // Autoplay (muted, so this is allowed everywhere) only once the video
+    // actually scrolls into view, and pauses again once it scrolls back
+    // out — a person who never reaches this section never silently
+    // downloads/plays 2MB of video. Skipped entirely for reduced-motion,
+    // which leaves the poster frame showing until someone presses play.
+    if (reduceMotion) return;
+
+    if ('IntersectionObserver' in window) {
+      var vio = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) video.play().catch(function () {});
+          else video.pause();
+        });
+      }, { threshold: 0.4 });
+      vio.observe(frame);
+    } else {
+      video.play().catch(function () {});
+    }
+  })();
+
   /* ---------------- Footer year ---------------- */
   var yearEl = document.getElementById('year');
   if (yearEl) yearEl.textContent = String(new Date().getFullYear());

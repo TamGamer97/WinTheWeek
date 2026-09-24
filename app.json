@@ -2,7 +2,7 @@
   "expo": {
     "name": "WinTheWeek",
     "slug": "win-the-week",
-    "version": "0.0.1",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -14,10 +14,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "1"
+      "buildNumber": "2"
     },
     "android": {
-      "versionCode": 1,
+      "versionCode": 2,
       "backgroundColor": "#FDFCFB",
       "icon": "./assets/icon.png",
       "adaptiveIcon": {

@@ -426,6 +426,166 @@ img { max-width: 100%; display: block; }
 .strip-sep { color: var(--line-strong); font-weight: 400; }
 
 /* ---------------------------------------------------------------------
+   Watch / demo video
+   The promo video is already a fully composed scene (phone frame, brand
+   mark, title cards baked in by the Remotion render), so this is just a
+   clean rounded panel around it — no second phone-frame wrapper, no text
+   overlaid on top of text the video already has.
+------------------------------------------------------------------------*/
+.watch { padding: 20px 0 110px; }
+
+.watch-frame {
+  position: relative;
+  max-width: 920px;
+  margin: 0 auto;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: #0B0C0F;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-panel), 0 50px 110px -35px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.watch-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #0B0C0F;
+  cursor: pointer;
+}
+
+/* A full-width bar (not the earlier two floating circles) once a seek
+   scrubber joined the controls — a drag target reads much more like a
+   real player when it spans the video's width, and the gradient scrim
+   keeps every control legible over whatever frame is playing behind it. */
+.watch-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 22px 14px 12px;
+  background: linear-gradient(to top, rgba(0, 0, 0, .72), rgba(0, 0, 0, 0));
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity .25s var(--ease), transform .25s var(--ease);
+}
+.watch-frame:hover .watch-controls,
+.watch-frame:focus-within .watch-controls,
+.watch-frame.is-paused .watch-controls {
+  opacity: 1;
+  transform: none;
+}
+
+.watch-btn {
+  flex: none;
+  width: 34px; height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, .18);
+  background: rgba(15, 16, 20, .55);
+  backdrop-filter: blur(10px) saturate(1.4);
+  -webkit-backdrop-filter: blur(10px) saturate(1.4);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+  transition: transform .2s var(--ease), border-color .2s var(--ease);
+}
+.watch-btn:hover { transform: translateY(-1px); border-color: rgba(255, 255, 255, .36); }
+.watch-btn svg { display: block; }
+.watch-btn .icon-play, .watch-btn .icon-sound-on { display: none; }
+.watch-frame.is-paused .watch-btn .icon-pause { display: none; }
+.watch-frame.is-paused .watch-btn .icon-play { display: block; }
+.watch-frame.is-unmuted .watch-btn .icon-sound-off { display: none; }
+.watch-frame.is-unmuted .watch-btn .icon-sound-on { display: block; }
+
+/* Draggable seek bar — the filled (played) portion is painted by script.js
+   via --watch-progress on this same element, read into the track's own
+   background so no extra DOM layer is needed just to show progress. */
+.watch-seek {
+  flex: 1;
+  min-width: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 14px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  --watch-progress: 0%;
+}
+.watch-seek::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, #fff var(--watch-progress), rgba(255, 255, 255, .28) var(--watch-progress));
+}
+.watch-seek::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .28);
+}
+.watch-seek::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: #fff;
+}
+.watch-seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px; height: 13px;
+  margin-top: -4.5px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, .5);
+  transition: transform .15s var(--ease);
+}
+.watch-seek::-moz-range-thumb {
+  width: 13px; height: 13px;
+  border: none;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, .5);
+  transition: transform .15s var(--ease);
+}
+.watch-seek:hover::-webkit-slider-thumb, .watch-seek:active::-webkit-slider-thumb { transform: scale(1.2); }
+.watch-seek:hover::-moz-range-thumb, .watch-seek:active::-moz-range-thumb { transform: scale(1.2); }
+.watch-seek:focus-visible { outline: 2px solid rgba(255, 255, 255, .6); outline-offset: 3px; border-radius: 999px; }
+
+.watch-time {
+  flex: none;
+  font-family: var(--font-head);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, .85);
+}
+@media (max-width: 520px) {
+  .watch-time { display: none; }
+}
+/* Touch devices have no reliable :hover to fade controls in on — always
+   show them there rather than requiring a first tap just to reveal a
+   seek bar. */
+@media (hover: none) {
+  .watch-controls { opacity: 1; transform: none; }
+}
+
+.watch-elsewhere { text-align: center; margin: 24px 0 0; }
+.watch-elsewhere a {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--font-head);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  padding: 6px 4px;
+  transition: color .2s var(--ease);
+}
+.watch-elsewhere a:hover { color: var(--accent); }
+.watch-elsewhere svg { flex: none; }
+.watch-elsewhere-arrow { font-size: 13px; transition: transform .25s var(--ease); }
+.watch-elsewhere a:hover .watch-elsewhere-arrow { transform: translate(2px, -2px); }
+
+/* ---------------------------------------------------------------------
    Section heads
 ------------------------------------------------------------------------*/
 .section-head { max-width: 640px; margin: 0 0 56px; }
@@ -436,6 +596,13 @@ img { max-width: 100%; display: block; }
   margin-top: 12px;
 }
 .section-sub { margin-top: 12px; font-size: 15.5px; }
+
+/* The Watch section's head is centered over the video panel below it,
+   unlike every other section-head (which sits left-aligned above a
+   left-aligned two-column layout) — so it needs its own centered margin,
+   not just centered text, or the box stays pinned left while the text
+   inside it centers, which reads as misaligned rather than centered. */
+.watch-head { margin-left: auto; margin-right: auto; text-align: center; }
 
 /* ---------------------------------------------------------------------
    Feature rows
@@ -802,6 +969,9 @@ img { max-width: 100%; display: block; }
   .phone-back { transform: translate(-40px, -14px) rotate(-7deg); }
   .phone-front { transform: translate(42px, 30px) rotate(6deg); }
   .feature-list { grid-template-columns: 1fr; }
+  .watch { padding: 0 0 70px; }
+  .watch-frame { border-radius: var(--radius-lg); }
+  .watch-controls { padding: 18px 10px 10px; gap: 8px; }
   .cta { padding: 70px 0; }
   .footer-row { flex-direction: column; align-items: flex-start; }
   .privacy-hero { padding: 100px 0 58px; }

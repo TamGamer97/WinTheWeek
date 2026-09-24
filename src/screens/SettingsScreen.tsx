@@ -184,7 +184,7 @@ export default function SettingsScreen() {
               <Text style={[styles.rowTitle, androidTextFix, { color: colors.ink, fontFamily: fonts.bodySemiBold }]}>Version</Text>
               <Text style={[styles.rowSub, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyRegular }]}>WinTheWeek release</Text>
             </View>
-            <Text style={[styles.version, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyMedium }]}>0.0.1</Text>
+            <Text style={[styles.version, androidTextFix, { color: colors.muted, fontFamily: fonts.bodyMedium }]}>1.0.0</Text>
           </View>
         </View>
 
