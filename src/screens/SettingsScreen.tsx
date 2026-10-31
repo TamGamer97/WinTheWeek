@@ -19,7 +19,7 @@ import Switch from '../components/Switch';
 import SegmentedToggle from '../components/SegmentedToggle';
 import { useAppState } from '../state/AppState';
 
-const CONTACT_EMAIL = 'wintheweek@tamimshuhel.com';
+const CONTACT_EMAIL = 'hello@tamsh.com';
 const WEBSITE_HOST = 'wintheweek.tamsh.com';
 
 export default function SettingsScreen() {
