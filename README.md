@@ -8,6 +8,10 @@ A weekly planner for recurring routines. You set up the things you want to do ea
 
 Android is out now. iOS is coming later.
 
+<a href="https://www.youtube.com/watch?v=dyJPFnVHGJ4"><img src="marketing/promo.gif" alt="Win The Week promo" width="100%" /></a>
+
+<sub>Click the video to watch it with sound on YouTube.</sub>
+
 ## Screenshots
 
 <table>
