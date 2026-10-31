@@ -20,7 +20,7 @@ import SegmentedToggle from '../components/SegmentedToggle';
 import { useAppState } from '../state/AppState';
 
 const CONTACT_EMAIL = 'wintheweek@tamimshuhel.com';
-const WEBSITE_HOST = 'wintheweek.tamimshuhel.com';
+const WEBSITE_HOST = 'wintheweek.tamsh.com';
 
 export default function SettingsScreen() {
   const { colors, radius, shadowCard, isDark, setIsDark } = useTheme();

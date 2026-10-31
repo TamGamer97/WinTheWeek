@@ -56,7 +56,7 @@ Every slot is populated. Replace one MP4, or edit its path/in-point in src/story
 | 37–44s | 09-progress.mp4 | 8s | Open Analytics; hold the populated September calendar and breakdown. |
 | 44–49s | End card | — | Brand, description, website. |
 
-The URL is wintheweek.tamimshuhel.com on both opening and closing cards. Dark mode appears naturally in the footage and matching video palette, without a dedicated theme caption.
+The URL is wintheweek.tamsh.com on both opening and closing cards. Dark mode appears naturally in the footage and matching video palette, without a dedicated theme caption.
 
 ## Reproduce capture
 

@@ -4,7 +4,7 @@
 
 A weekly planner for recurring routines. You set up the things you want to do each week (gym 3 times, read 4 times, etc.), plan which days they go on, and then tick them off from a simple daily checklist.
 
-[Get it on Google Play](https://play.google.com/store/apps/details?id=com.tamimshuhel.wintheweek) · [Website](https://wintheweek.tamimshuhel.com) · [Promo video](https://www.youtube.com/watch?v=dyJPFnVHGJ4)
+[Get it on Google Play](https://play.google.com/store/apps/details?id=com.tamimshuhel.wintheweek) · [Website](https://wintheweek.tamsh.com) · [Promo video](https://www.youtube.com/watch?v=dyJPFnVHGJ4)
 
 Android is out now. iOS is coming later.
 
